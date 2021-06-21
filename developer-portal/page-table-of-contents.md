@@ -1,3 +1,6 @@
+---
+enableToc: false
+---
 # Page table of contents
 
 

@@ -1,0 +1,3940 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Ledger / Wallet Daemon API",
+    "description": "Ledger / Wallet Daemon API, a server wrapping LibCore. This is a test descitpion. What can I do ? <br> can I use html, or markdown ? ",
+    "version": "2.11.4"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:9200",
+      "description": "Local server"
+    },
+    {
+      "url": "http://wd",
+      "description": "'wd' host in a Kubernetes pod"
+    }
+  ],
+  "paths": {
+    "/_health": {
+      "get": {
+        "tags": [
+          "Status/Health"
+        ],
+        "summary": "Healthcheck",
+        "description": "Return the healthcheck with current libcore version",
+        "responses": {
+          "200": {
+            "description": "Health and libcore version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "engine_version",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "engine_version": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/_version": {
+      "get": {
+        "tags": [
+          "Status/Health"
+        ],
+        "summary": "Version and Runtime Configuration",
+        "description": "Return the version of Wallet Daemon with all configuration",
+        "responses": {
+          "200": {
+            "description": "Version and configuration of explorer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/_metrics": {
+      "get": {
+        "tags": [
+          "Status/Health"
+        ],
+        "summary": "Runtime metrics",
+        "description": "[Advanced] return a list of various runtime metrics when coded/exposed by libcore",
+        "responses": {
+          "200": {
+            "description": "Metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "coreHttpCachedPool",
+                    "fallbackHttpCachedPool",
+                    "feesHttpCachedPool"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "coreHttpCachedPool": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "feesHttpCachedPool": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "fallbackHttpCachedPool": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pools": {
+      "get": {
+        "tags": [
+          "Pool"
+        ],
+        "summary": "Query all pools handled by this wallet daemon",
+        "description": "The pools returned can all be synchronized separately",
+        "responses": {
+          "200": {
+            "description": "Wallet Pool information.",
+            "content": {
+              "application/json": {}
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Pool"
+        ],
+        "summary": "Create Pool.",
+        "description": "Create a new wallet pool to handle wallets of accounts. The database that will hold the data needs to already be created",
+        "requestBody": {
+          "description": "The wallet pool to create",
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "pool_name"
+                ],
+                "type": "object",
+                "properties": {
+                  "pool_name": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "pool_name": "local_pool"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet Pool created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "name",
+                    "wallet_count"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "wallet_count": {
+                      "type": "integer",
+                      "format": "int32"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The database for the Wallet hasn't been created.",
+            "content": {
+              "application/json": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}": {
+      "get": {
+        "tags": [
+          "Pool"
+        ],
+        "summary": "Query specific pool information handled.",
+        "description": "Give a rough overview of the wallet pool.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet Pool information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "name",
+                    "wallet_count"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "wallet_count": {
+                      "type": "integer",
+                      "format": "int32"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Pool"
+        ],
+        "summary": "Delete a wallet pool",
+        "description": "The deletion will not remove the database, but mostly wipe it.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet Pool deleted.",
+            "content": {
+              "application/json": {}
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/operations/synchronize": {
+      "post": {
+        "tags": [
+          "Pool"
+        ],
+        "summary": "Synchronize all accounts in all wallet pools",
+        "description": "The endpoint is synchronous and returns after all synchronizations are over.",
+        "deprecated": true,
+        "responses": {
+          "200": {
+            "description": "List of synchronization results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SynchronizationResult"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/operations/synchronize": {
+      "post": {
+        "tags": [
+          "Pool"
+        ],
+        "summary": "Synchronize all accounts in a single wallet pool",
+        "description": "The endpoint is synchronous and returns after all synchronizations are over.",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of synchronization results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SynchronizationResult"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "List all wallets in the given pool",
+        "description": "Give a finer-grained view of the wallet pool than GET /pools/{pool_name}",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "offset with the cursor for navigation in pages, defaults to 0",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "description": "page size, defaults to 20",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of wallet information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "count",
+                    "wallets"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "wallets": {
+                      "type": "array",
+                      "properties": {},
+                      "items": {
+                        "$ref": "#/components/schemas/WalletView"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Create wallet.",
+        "description": "Create a new wallet in the pool. This chooses the crypto currency that the accounts within that wallet will have.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The wallet to create",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletCreationBody"
+              },
+              "example": {
+                "wallet_name": "btc_wallet",
+                "currency_name": "bitcoin",
+                "is_native_segwit": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Query wallet info in the given pool",
+        "description": "Query specific wallet information.",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get account information",
+        "description": "Obtain all information about a given account",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The accounts matching the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Create a new account",
+        "description": "Create an account using only derivations",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The derivations to use to create the account",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDerivationView"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Account information for the new account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/next": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get derivation information for the account",
+        "description": "Fetch next account information",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "query",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The list of derivation for the given account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDerivationView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/extended": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Create a new account",
+        "description": "Create an account using extended key information",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Information about the extended public key of the account",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDerivationView"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Account information for the new account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/next_extended": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get extended key information for the account",
+        "description": "Fetch next account extended key information",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "query",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account information for the new account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountExtendedDerivationView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get information for the account",
+        "description": "Obtain all information about an account",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account information for the target account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Delete operations/transactions associated with the account",
+        "description": "The account will still exist in the wallet. Only synchronized data is wiped from the database. Therefore, a 'since' query parameter is added to allow only partial data deletion.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Timestamp (in ms from epoch) after which all data should be deleted. Defaults to 0 (so since epoch)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Data deleted",
+            "content": {
+              "": {}
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/addresses/fresh": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get some fresh addresses of the account",
+        "description": "What is a 'fresh' address ? See you in the next episode",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of fresh addresses for the account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "properties": {},
+                  "items": {
+                    "$ref": "#/components/schemas/FreshAddressView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/addresses": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get a range of addresses for the account",
+        "description": "Ask for all the addresses within a range of indexes. This is mostly useful for UTXO-based currencies. This endpoint also marks the addresses as 'self' internally to tag operations properly on synchronization for example.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive start index of the range of addresses",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Inclusive end index of the range of addresses",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of addresses in range for the account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "properties": {},
+                  "items": {
+                    "$ref": "#/components/schemas/FreshAddressView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/path": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Get the derivation path used for the account",
+        "description": "The derivation path used is important for backup/restore reasons mostly.",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Derivation path used for the account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/operations": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query the operations of the account",
+        "description": "The operations are paginated using a timestamp in milliseconds. So a crawling algorithm might fail (and loop forever on the same page) if there are more than 'batch' transactions in the same milliseconds. Unlikely, but it is important to remember that.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "next",
+            "in": "query",
+            "description": "optional cursor for navigation in pages",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "previous",
+            "in": "query",
+            "description": "optional cursor for navigation in pages",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "offset with the cursor for navigation in pages, defaults to 0",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "batch",
+            "in": "query",
+            "description": "page size, defaults to 20",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "full_op",
+            "in": "query",
+            "description": "set to 1 to get more details about the transaction originating the operation, defaults to 0",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contract",
+            "in": "query",
+            "description": "smart contract address in the case of ERC-20 for example, defaults to nothing",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of operations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackedOperationsView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/operations/latests": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query the X latest operations of the account",
+        "description": "This endpoint directly queries the database, so if the information seems stale, you need to trigger a synchronization for the account.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "length",
+            "in": "query",
+            "description": "number of operations to fetch, defaults to 5",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contract",
+            "in": "query",
+            "description": "smart contract address in the case of ERC-20 for example, defaults to nothing",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of operations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackedOperationsView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/operations/busy": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query synchronizing status",
+        "description": "If this returns true, that means there is a synchronization ongoing for the account already. When there's already a synchronization, asking for a new synchronization using POST /synchronize will only wait for the end of the ongoing synchronization, and _not_ start a new one.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "True if the account is undergoing synchronization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/operations/synchronize": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Synchronize the account with its blockchain",
+        "description": "Endpoint is synchronous: it does not return until the synchronization is done. This can be very long for the initial synchronization of a big account",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Synchronization ended successfully",
+            "content": {
+              "application/json": {}
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/operations/resync": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Resynchronize operations/transactions associated with the account",
+        "description": "Delete recent operation data for the account and then resynchronize from that timestamp.\nEndpoint is synchronous: it does not return until the synchronization is done.\nThis can be very long for a big account",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Timestamp (in ms from epoch) after which all data should be deleted. Defaults to 0 (since epoch)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Data deleted and account synchronized",
+            "content": {
+              "application/json": {}
+            }
+          },
+          "400": {
+            "description": "The account is already undergoing synchronization",
+            "content": {
+              "": {}
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/balance": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query balance of the account",
+        "description": "The balance is returned for the main crypto currency of the wallet, in its smallest unit so the result is always an integer",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contract",
+            "in": "query",
+            "description": "smart contract address in the case of ERC-20 for example, defaults to nothing",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Balance in the smallest unit possible (so it is always an integer)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/xpub": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query extended public key of the account",
+        "description": "The extended public key information can be used later to add the same account in a wallet.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Extended public key information, usable for creating an account using the /extended endpoint.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/operations/{uid}": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query specific operation of the account",
+        "description": "Asking for a specific UID in the operations list allow to get a quicker answer, but the UID is not made to be guessable. If you use the special 'first' value as UID though, the endpoint will return the very first operation of the account.",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "path",
+            "description": "Unique identifier of the operation to fetch. Use the special value 'first' to get the first operation on the account.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "full_op",
+            "in": "query",
+            "description": "set to 1 to get more details about the transaction originating the operation, defaults to 0",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/history": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query balance history of the account",
+        "description": "The balance history is a huge array of balances that match the timestep passed as argument. It's up to the caller to match a timestamp to the balance array index",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Beginning of history request in ISO-8601 formatted date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of history request in ISO-8601 formatted date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeInterval",
+            "in": "query",
+            "description": "Time interval during the period. Valid values are ['HOUR', 'DAY', 'WEEK', 'MONTH']",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of balances at [start, start+interval, start+2*interval...]",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/utxo": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query the list of UTXOs for the account",
+        "description": "The list of UTXOs is only relevant to UTXO-based currencies, meaning only BTC-like for now.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "offset in the list of UTXO to display. Defaults to 0",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "batch",
+            "in": "query",
+            "description": "Size of the UTXO page. Defaults to 2147483647",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of UTXOs and total count of UTXOs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UtxoAccountResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/tokens": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query all ERC-20 tokens available of the account",
+        "description": "The list of all known ERC-20 accounts there is only updated on synchronization, if there are operations on the associated smart contract for the account. Notably, this means that smart contract address migration can make the token seem to 'disappear' until another operation is done on the blockchain",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ERC-20 tokens held by the account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ERC20AccountView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/tokens/operations": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query all ERC-20 tokens operations of the account",
+        "description": "Query ERC-20-specific operations for the account in the same format as the GET /operations endpoint.",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ERC-20 tokens operations the account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OperationView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/tokens/{token_address}": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query specific ERC-20 token information for the account",
+        "description": "This endpoint allows to query a specific ERC-20 account instead of all of them, in case the list is too big (because of being spammed for example).",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token_address",
+            "in": "path",
+            "description": "Address of the contract",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "offset with the cursor for navigation in pages, defaults to 0",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "batch",
+            "in": "query",
+            "description": "page size, defaults to 20",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Information for the given contract account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ERC20AccountView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/tokens/{token_address}/history": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query balance history of the ERC-20 token sub-account",
+        "description": "See the other GET /history endpoint for more information about that.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token_address",
+            "in": "path",
+            "description": "Address of the contract",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Beginning of history request in ISO-8601 formatted date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of history request in ISO-8601 formatted date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeInterval",
+            "in": "query",
+            "description": "Time interval during the period. Valid values are ['HOUR', 'DAY', 'WEEK', 'MONTH']",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of balances at [start, start+interval, start+2*interval...]",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenHistoryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/tokens/{token_address}/operations": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Query all ERC-20 token operations of the account for a specific contract",
+        "description": "List operations like the GET /operations endpoint, but specific to a smart contract",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool that holds the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet that holds the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token_address",
+            "in": "path",
+            "description": "Address of the contract",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "offset with the cursor for navigation in pages, defaults to 0",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "batch",
+            "in": "query",
+            "description": "page size, defaults to 20",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of ERC-20 tokens operations the account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OperationView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/currencies/{currency_name}": {
+      "get": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "Query cryptocurrency information",
+        "description": "The cryptocurrency information tries to follow a similar format as the crypto-assets list, in order to get information about possibly supported currencies by this version of the wallet daemon",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency_name",
+            "in": "path",
+            "description": "Name of the crypto currency",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Currency information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/currencies": {
+      "get": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "Query all cryptocurrencies information",
+        "description": "The cryptocurrency information tries to follow a similar format as the crypto-assets list, in order to get information about possibly supported currencies by this version of the wallet daemon",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of currency information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "properties": {},
+                  "items": {
+                    "$ref": "#/components/schemas/CurrencyView"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/currencies/{currency_name}/validate": {
+      "get": {
+        "tags": [
+          "Currency"
+        ],
+        "summary": "Validate address for given currency",
+        "description": "This endpoint validates that the address is valid for the given crypto currency, to avoid human errors when inputting transfer recipients for example.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency_name",
+            "in": "path",
+            "description": "Name of the crypto currency",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "description": "The address to validate",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "true (valid) / false (not valid)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The wallet pool is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/transactions": {
+      "post": {
+        "tags": [
+          "Transaction"
+        ],
+        "summary": "Create a transaction",
+        "description": "Build a transaction, by picking UTXOs or choosing gas values, in a format ready to be signed",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool holding the wallet holding the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet holding the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request matching the currency schema",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TxRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction information information.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TxView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/transactions/sign": {
+      "post": {
+        "tags": [
+          "Transaction"
+        ],
+        "summary": "Broadcast a transaction",
+        "description": "Broadcasting the transaction will return the hash of the transaction to monitor the blockchain if you wish. It also errors if the broadcast fails the 'basic' node checks before gossiping the transaction",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool holding the wallet holding the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet holding the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request matching the currency schema",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BroadcastRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The hash of the transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The account is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    },
+    "/pools/{pool_name}/wallets/{wallet_name}/accounts/{account_index}/transactions/hash": {
+      "post": {
+        "tags": [
+          "Transaction"
+        ],
+        "summary": "Hash a raw transaction",
+        "description": "Get the previsional hash of a raw transaction, in order to monitor it in an explorer for example.",
+        "parameters": [
+          {
+            "name": "pool_name",
+            "in": "path",
+            "description": "Name of the pool holding the wallet holding the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet_name",
+            "in": "path",
+            "description": "Name of the wallet holding the account",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_index",
+            "in": "path",
+            "description": "Index of the account in the wallet",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Request matching the currency schema",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BroadcastRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The hash of the transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The currency of the wallet is not supported",
+            "content": {
+              "": {}
+            }
+          },
+          "404": {
+            "description": "The account is not found",
+            "content": {
+              "": {}
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Status": {
+        "required": [
+          "engine_version",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "engine_version": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiConfig": {
+        "required": [
+          "fallbackTimeout",
+          "fees",
+          "paths",
+          "proxyUse"
+        ],
+        "type": "object",
+        "properties": {
+          "fallbackTimeout": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paths": {
+            "$ref": "#/components/schemas/PathConfig"
+          },
+          "proxyUse": {
+            "type": "object",
+            "properties": {}
+          },
+          "fees": {
+            "$ref": "#/components/schemas/FeesPath"
+          }
+        }
+      },
+      "ClientConnectionConfig": {
+        "required": [
+          "connectionPoolSize",
+          "connectionTtl",
+          "retryBackoff",
+          "retryMin",
+          "retryPercent",
+          "retryTtl"
+        ],
+        "type": "object",
+        "properties": {
+          "connectionPoolSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryBackoff": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "connectionTtl": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryTtl": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryMin": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryPercent": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ExplorerConfig": {
+        "required": [
+          "api",
+          "client"
+        ],
+        "type": "object",
+        "properties": {
+          "api": {
+            "$ref": "#/components/schemas/ApiConfig"
+          },
+          "client": {
+            "$ref": "#/components/schemas/ClientConnectionConfig"
+          }
+        }
+      },
+      "FeesPath": {
+        "required": [
+          "path"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "MapHostObject": {
+        "type": "object",
+        "properties": {}
+      },
+      "MapStringFeesPath": {
+        "$ref": "#/components/schemas/FeesPath"
+      },
+      "MapStringPathConfig": {
+        "$ref": "#/components/schemas/PathConfig"
+      },
+      "PathConfig": {
+        "required": [
+          "disableSyncToken",
+          "host",
+          "port"
+        ],
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "disableSyncToken": {
+            "type": "boolean"
+          },
+          "fallback": {
+            "type": "string"
+          },
+          "explorerVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "VersionResponse": {
+        "required": [
+          "commitHash",
+          "explorers",
+          "libcoreVersion",
+          "name",
+          "scalaVersion",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "scalaVersion": {
+            "type": "string"
+          },
+          "commitHash": {
+            "type": "string"
+          },
+          "libcoreVersion": {
+            "type": "string"
+          },
+          "explorers": {
+            "$ref": "#/components/schemas/ExplorerConfig"
+          }
+        }
+      },
+      "MetricsResponse": {
+        "required": [
+          "coreHttpCachedPool",
+          "fallbackHttpCachedPool",
+          "feesHttpCachedPool"
+        ],
+        "type": "object",
+        "properties": {
+          "coreHttpCachedPool": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "feesHttpCachedPool": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fallbackHttpCachedPool": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "WalletPoolView": {
+        "required": [
+          "name",
+          "wallet_count"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "wallet_count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SynchronizationResult": {
+        "required": [
+          "account_index",
+          "pool_name",
+          "sync_result",
+          "wallet_name"
+        ],
+        "type": "object",
+        "properties": {
+          "account_index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "wallet_name": {
+            "type": "string"
+          },
+          "pool_name": {
+            "type": "string"
+          },
+          "sync_result": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PoolCreationBody": {
+        "required": [
+          "pool_name"
+        ],
+        "type": "object",
+        "properties": {
+          "pool_name": {
+            "type": "string"
+          }
+        }
+      },
+      "CurrencyView": {
+        "required": [
+          "bip_44_coin_type",
+          "family",
+          "name",
+          "network_params",
+          "payment_uri_scheme",
+          "units"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string",
+            "enum": [
+              "BITCOIN",
+              "COSMOS",
+              "ETHEREUM",
+              "RIPPLE",
+              "MONERO",
+              "TEZOS",
+              "STELLAR",
+              "ALGORAND"
+            ]
+          },
+          "bip_44_coin_type": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "payment_uri_scheme": {
+            "type": "string"
+          },
+          "units": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "$ref": "#/components/schemas/UnitView"
+            }
+          },
+          "network_params": {
+            "$ref": "#/components/schemas/NetworkParamsView"
+          }
+        }
+      },
+      "MapTxHashOutputIndex": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "NetworkParamsView": {
+        "type": "object"
+      },
+      "SeqUnitView": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "$ref": "#/components/schemas/UnitView"
+        }
+      },
+      "SeqWalletView": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "$ref": "#/components/schemas/WalletView"
+        }
+      },
+      "UnitView": {
+        "required": [
+          "code",
+          "magnitude",
+          "name",
+          "symbol"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "magnitude": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "WalletView": {
+        "required": [
+          "account_count",
+          "balance",
+          "configuration",
+          "currency",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "account_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "balance": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyView"
+          },
+          "configuration": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      },
+      "WalletsViewWithCount": {
+        "required": [
+          "count",
+          "wallets"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "wallets": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "$ref": "#/components/schemas/WalletView"
+            }
+          }
+        }
+      },
+      "WalletCreationBody": {
+        "required": [
+          "currency_name",
+          "is_native_segwit",
+          "wallet_name"
+        ],
+        "type": "object",
+        "properties": {
+          "wallet_name": {
+            "type": "string"
+          },
+          "currency_name": {
+            "type": "string"
+          },
+          "is_native_segwit": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Seq": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "type": "object"
+        }
+      },
+      "AccountDerivationView": {
+        "required": [
+          "account_index",
+          "derivations"
+        ],
+        "type": "object",
+        "properties": {
+          "account_index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "derivations": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "$ref": "#/components/schemas/DerivationView"
+            }
+          }
+        }
+      },
+      "DerivationView": {
+        "required": [
+          "owner",
+          "path"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "pub_key": {
+            "type": "string"
+          },
+          "chain_code": {
+            "type": "string"
+          }
+        }
+      },
+      "SeqDerivationView": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "$ref": "#/components/schemas/DerivationView"
+        }
+      },
+      "AccountView": {
+        "required": [
+          "balance",
+          "currency",
+          "index",
+          "keychain",
+          "operation_count",
+          "wallet_name"
+        ],
+        "type": "object",
+        "properties": {
+          "wallet_name": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "balance": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "operation_count": {
+            "type": "object",
+            "properties": {}
+          },
+          "keychain": {
+            "type": "string"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyView"
+          }
+        }
+      },
+      "FreshAddressView": {
+        "required": [
+          "address",
+          "derivation_path"
+        ],
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "derivation_path": {
+            "type": "string"
+          }
+        }
+      },
+      "MapOperationTypeObject": {
+        "type": "object",
+        "properties": {}
+      },
+      "AccountExtendedDerivationView": {
+        "required": [
+          "account_index",
+          "derivations"
+        ],
+        "type": "object",
+        "properties": {
+          "account_index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "derivations": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "$ref": "#/components/schemas/ExtendedDerivationView"
+            }
+          }
+        }
+      },
+      "ExtendedDerivationView": {
+        "required": [
+          "owner",
+          "path"
+        ],
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "extended_key": {
+            "type": "string"
+          }
+        }
+      },
+      "SeqExtendedDerivationView": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "$ref": "#/components/schemas/ExtendedDerivationView"
+        }
+      },
+      "OperationView": {
+        "required": [
+          "account_index",
+          "amount",
+          "confirmations",
+          "currency_family",
+          "currency_name",
+          "fees",
+          "opType",
+          "recipients",
+          "self_recipients",
+          "senders",
+          "time",
+          "type",
+          "uid",
+          "wallet_name"
+        ],
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string"
+          },
+          "currency_name": {
+            "type": "string"
+          },
+          "currency_family": {
+            "type": "string",
+            "enum": [
+              "BITCOIN",
+              "COSMOS",
+              "ETHEREUM",
+              "RIPPLE",
+              "MONERO",
+              "TEZOS",
+              "STELLAR",
+              "ALGORAND"
+            ]
+          },
+          "trust": {
+            "$ref": "#/components/schemas/TrustIndicatorView"
+          },
+          "confirmations": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "block_height": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "SEND",
+              "RECEIVE",
+              "DELEGATE",
+              "UNDELEGATE",
+              "REWARDS",
+              "NONE"
+            ]
+          },
+          "amount": {
+            "type": "string"
+          },
+          "fees": {
+            "type": "string"
+          },
+          "wallet_name": {
+            "type": "string"
+          },
+          "account_index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "senders": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipients": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "type": "string"
+            }
+          },
+          "self_recipients": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "type": "string"
+            }
+          },
+          "transaction": {
+            "$ref": "#/components/schemas/TransactionView"
+          }
+        }
+      },
+      "PackedOperationsView": {
+        "required": [
+          "operations"
+        ],
+        "type": "object",
+        "properties": {
+          "previous": {
+            "type": "string"
+          },
+          "next": {
+            "type": "string"
+          },
+          "operations": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "$ref": "#/components/schemas/OperationView"
+            }
+          }
+        }
+      },
+      "SeqOperationView": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "$ref": "#/components/schemas/OperationView"
+        }
+      },
+      "SeqString": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "type": "string"
+        }
+      },
+      "TransactionView": {
+        "type": "object"
+      },
+      "TrustIndicatorView": {
+        "required": [
+          "conflicted_operations",
+          "level",
+          "origin",
+          "weight"
+        ],
+        "type": "object",
+        "properties": {
+          "weight": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "TRUSTED",
+              "PENDING",
+              "UNTRUSTED",
+              "DROPPED"
+            ]
+          },
+          "conflicted_operations": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "type": "string"
+            }
+          },
+          "origin": {
+            "type": "string"
+          }
+        }
+      },
+      "HistoryResponse": {
+        "required": [
+          "balances"
+        ],
+        "type": "object",
+        "properties": {
+          "balances": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "ListBigInt": {
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "ListUTXOView": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UTXOView"
+        }
+      },
+      "UTXOView": {
+        "required": [
+          "address",
+          "amount",
+          "confirmations",
+          "hash",
+          "height",
+          "output_index"
+        ],
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "output_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "address": {
+            "type": "string"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "confirmations": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UtxoAccountResponse": {
+        "required": [
+          "count",
+          "utxos"
+        ],
+        "type": "object",
+        "properties": {
+          "utxos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UTXOView"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "List": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "ERC20AccountView": {
+        "required": [
+          "balance",
+          "contract_address",
+          "name",
+          "number_of_decimal",
+          "symbol"
+        ],
+        "type": "object",
+        "properties": {
+          "contract_address": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number_of_decimal": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "TokenHistoryResponse": {
+        "required": [
+          "balances"
+        ],
+        "type": "object",
+        "properties": {
+          "balances": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "CreateBTCTransactionRequest": {
+        "required": [
+          "amount",
+          "exclude_utxos",
+          "recipient"
+        ],
+        "type": "object",
+        "properties": {
+          "recipient": {
+            "type": "string"
+          },
+          "fees_per_byte": {
+            "type": "string"
+          },
+          "fees_level": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "merge_utxo_strategy": {
+            "type": "string"
+          },
+          "exclude_utxos": {
+            "$ref": "#/components/schemas/MapTxHashOutputIndex"
+          },
+          "partial_tx": {
+            "type": "object"
+          }
+        }
+      },
+      "CreateETHTransactionRequest": {
+        "required": [
+          "amount",
+          "recipient"
+        ],
+        "type": "object",
+        "properties": {
+          "recipient": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "gas_limit": {
+            "type": "string"
+          },
+          "gas_price": {
+            "type": "string"
+          },
+          "fees_level": {
+            "type": "string"
+          },
+          "contract": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateXLMTransactionRequest": {
+        "required": [
+          "amount",
+          "recipient"
+        ],
+        "type": "object",
+        "properties": {
+          "recipient": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "fees_amount": {
+            "type": "string"
+          },
+          "fees_level": {
+            "type": "string"
+          },
+          "memo": {
+            "$ref": "#/components/schemas/XLMMemoRequest"
+          }
+        }
+      },
+      "CreateXRPTransactionRequest": {
+        "required": [
+          "memos",
+          "send_to"
+        ],
+        "type": "object",
+        "properties": {
+          "send_to": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/XRPSendToRequest"
+            }
+          },
+          "wipe_to": {
+            "type": "string"
+          },
+          "fees": {
+            "type": "string"
+          },
+          "fees_level": {
+            "type": "string"
+          },
+          "memos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RippleLikeMemo"
+            }
+          },
+          "destination_tag": {
+            "type": "object"
+          }
+        }
+      },
+      "ListRippleLikeMemo": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RippleLikeMemo"
+        }
+      },
+      "ListXRPSendToRequest": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/XRPSendToRequest"
+        }
+      },
+      "RippleLikeMemo": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "fmt": {
+            "type": "string"
+          },
+          "ty": {
+            "type": "string"
+          }
+        }
+      },
+      "TxRequest": {
+        "type": "object",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CreateXRPTransactionRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CreateBTCTransactionRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CreateETHTransactionRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CreateXLMTransactionRequest"
+          }
+        ]
+      },
+      "XLMMemoRequest": {
+        "required": [
+          "type",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "XRPSendToRequest": {
+        "required": [
+          "address",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          }
+        }
+      },
+      "BitcoinTransactionView": {
+        "required": [
+          "hash",
+          "inputs",
+          "lock_time",
+          "outputs",
+          "time"
+        ],
+        "type": "object",
+        "properties": {
+          "block": {
+            "$ref": "#/components/schemas/BlockView"
+          },
+          "fees": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inputs": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "$ref": "#/components/schemas/InputView"
+            }
+          },
+          "lock_time": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "outputs": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "$ref": "#/components/schemas/OutputView"
+            }
+          }
+        }
+      },
+      "BlockView": {
+        "type": "object"
+      },
+      "CommonBlockView": {
+        "required": [
+          "hash",
+          "height",
+          "time"
+        ],
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ERC20": {
+        "required": [
+          "amount",
+          "receiver"
+        ],
+        "type": "object",
+        "properties": {
+          "receiver": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "EthereumTransactionView": {
+        "required": [
+          "date",
+          "gas_limit",
+          "gas_price",
+          "hash",
+          "receiver",
+          "sender",
+          "status",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "block": {
+            "$ref": "#/components/schemas/CommonBlockView"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "receiver": {
+            "type": "string"
+          },
+          "sender": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "erc20": {
+            "$ref": "#/components/schemas/ERC20"
+          },
+          "gas_price": {
+            "type": "string"
+          },
+          "gas_limit": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "InputView": {
+        "type": "object"
+      },
+      "OutputView": {
+        "type": "object"
+      },
+      "RippleTransactionView": {
+        "required": [
+          "date",
+          "destination_tag",
+          "fees",
+          "hash",
+          "ledger_sequence",
+          "memos",
+          "receiver",
+          "sender",
+          "sequence",
+          "signing_pub_key",
+          "status",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "fees": {
+            "type": "string"
+          },
+          "receiver": {
+            "type": "string"
+          },
+          "sender": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sequence": {
+            "type": "string"
+          },
+          "ledger_sequence": {
+            "type": "string"
+          },
+          "signing_pub_key": {
+            "type": "string"
+          },
+          "memos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RippleLikeMemo"
+            }
+          },
+          "destination_tag": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SeqInputView": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "$ref": "#/components/schemas/InputView"
+        }
+      },
+      "SeqOutputView": {
+        "type": "array",
+        "properties": {},
+        "items": {
+          "$ref": "#/components/schemas/OutputView"
+        }
+      },
+      "StellarMemo": {
+        "required": [
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "MEMO_NONE",
+              "MEMO_TEXT",
+              "MEMO_ID",
+              "MEMO_HASH",
+              "MEMO_RETURN"
+            ]
+          }
+        }
+      },
+      "StellarTransactionView": {
+        "required": [
+          "fees",
+          "hash",
+          "isSuccessful",
+          "is_successful",
+          "receiver",
+          "sender",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "sender": {
+            "type": "string"
+          },
+          "receiver": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "fees": {
+            "type": "string"
+          },
+          "memo": {
+            "$ref": "#/components/schemas/StellarMemo"
+          },
+          "is_successful": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TxView": {
+        "type": "object",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RippleTransactionView"
+          },
+          {
+            "$ref": "#/components/schemas/BitcoinTransactionView"
+          },
+          {
+            "$ref": "#/components/schemas/EthereumTransactionView"
+          },
+          {
+            "$ref": "#/components/schemas/StellarTransactionView"
+          }
+        ]
+      },
+      "BroadcastBTCTransactionRequestBody": {
+        "required": [
+          "pubkeys",
+          "raw_transaction",
+          "signatures"
+        ],
+        "type": "object",
+        "properties": {
+          "raw_transaction": {
+            "type": "string"
+          },
+          "signatures": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "type": "string"
+            }
+          },
+          "pubkeys": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "BroadcastRequest": {
+        "type": "object",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/BroadcastTransactionRequestBody"
+          },
+          {
+            "$ref": "#/components/schemas/BroadcastBTCTransactionRequestBody"
+          }
+        ]
+      },
+      "BroadcastTransactionRequestBody": {
+        "required": [
+          "raw_transaction",
+          "signatures"
+        ],
+        "type": "object",
+        "properties": {
+          "raw_transaction": {
+            "type": "string"
+          },
+          "signatures": {
+            "type": "array",
+            "properties": {},
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

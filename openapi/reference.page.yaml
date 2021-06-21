@@ -1,8 +1,13 @@
 type: reference-docs
-definitionId: petstore
+versions:
+  - definitionId: walletdaemonapi
+    id: v1
+    title: Acme V1
+    isDefault: true
+  - definitionId: vaultapi
+    id: v2
+    title: Acme V2
+    isDefault: true
+
 settings:
-  generateCodeSamples:
-    languages:
-      - lang: curl
-      - lang: JavaScript
-      - lang: Node.js
+  jsonSampleExpandLevel: 'all'

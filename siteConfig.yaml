@@ -3,11 +3,12 @@ meta:
   description: The best API documentation generator ever.
   siteUrl: https://portal-demo.redoc.ly
   keywords: redocly developer portal, api portal starter, api reference docs
-logo: ./images/logo.png
+logo: ./images/Frame389.png
 enableToc: true
 oasDefinitions:
-  petstore: ./openapi/petstore.yaml
-  # add links to definitions in our API registry by using a fully qualified URL.
+  walletdaemonapi: ./openapi/swagger.json
+  vaultapi: ./openapi/swagger_vault.json
+  
 stylesheets:
   - https://fonts.googleapis.com/css?family=Roboto:300,400,600,700
   - https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700&display=swap
@@ -18,18 +19,18 @@ stylesheets:
 #scripts:
 #  - ./static/intercom.js
 nav:
+  - search: true
 
-  - label: Training exercises
+  - label: FAQ
     page: developer-portal/index.md
 
-  - label: External docs
+  - label: Ledger Vault Help Center
     icon: ./images/redocly-icon-white.png
     href: https://docs.redoc.ly/developer-portal/introduction/
 
-  - search: true
 
 footer:
-  copyrightText: Copyright © Redocly 2019-2021. All right reserved.
+  copyrightText: Copyright © Redocly LLC 2019-2021. All right reserved.
   columns:
     - group: Legal
       items:
@@ -39,6 +40,10 @@ footer:
           href: 'https://redoc.ly/privacy-policy/'
         - label: Cookie Notice
           href: 'https://redoc.ly/privacy-policy/'
+    - group: New footer section
+      items:
+        - label: first item
+        - label: second item 
     - group: Support
       items:
         - label: FAQ

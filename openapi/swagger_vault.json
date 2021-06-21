@@ -1,0 +1,4801 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "description": "# Introduction\n\n## Overview\n\nThe Ledger Vault exposes a RESTful API that you can integrate with your\nsystem. You can access it through a single Docker image deployed in your\ninfrastructure, which exposes the different endpoints defined in this\ndocumentation.\n\nThe Ledger Vault's API allows you to:\n\n - Create, approve, or reject transactions.\n - Create and register API users.\n - Retrieve different kinds of information, such as details on existing accounts,\ngroups, and whitelists.\n\nFor more information on the Ledger Vault API, refer to the [Help Center](https://help.vault.ledger.com/Content/api/api_overview.html).\n\nGet in touch with your Account Manager to access the Ledger Vault API or [fill\nout this form](https://share.hsforms.com/1wJ_kP4hkTeCssFvLk9_2fg3kwh5) and we'll get back to you as soon as possible.\n\n\n## Rate limitations\n\nMake sure you're aware of these limitations before you get started. You can't:\n\n - Create more than 100 pending requests at the same time in your Vault workspace.\n - Do more than 50 successful POST HTTP calls per hour on transaction route.\n - Do more than 600 successful POST HTTP calls per hour on other routes.\n\n\n## Pagination\n\nWhen necessary we use a pagination mechanism to\nfetch big volumes of data when the dataset is too large.\n\nFor example, let's take a look at a call on the `/transactions` endpoint:\n\n```\nGET /transactions?page=2&page_size=5\n```\n\nHere, the API is queried to return the second page of our queryset, each page\ncontaining 5 elements\n\nHere is the resulting json:\n\n```json\n{\n  \"edges\": [\n    {\n      \"cursor\": 0,\n      \"node\": {...}\n    },\n    {\n      \"cursor\": 1,\n      \"node\": {...}\n    },\n    {\n      \"cursor\": 2,\n      \"node\": {...}\n    },\n    {\n      \"cursor\": 3,\n      \"node\": {...}\n    },\n    {\n      \"cursor\": 4,\n      \"node\": {...}\n    }\n  ],\n  \"page_info\": {\n    \"count\": 73,\n    \"has_next_page\": True\n  }\n}\n```\n\nThere are two properties, `edges` and `page_info`, at the root level, explained\nin the following sections.\n\n### The `edges` Property\n\nThis property contains the relevant data as a JSON array. Each element of this\narray is an object with two properties:\n\n- a `cursor` property which is an integer equivalent to the index of the element\n  in the current view.\n- a `node` property which represents the actual object being queried, in this\ncase a `Transaction` type (which schema is described in our openAPI\nspecification).\n\n\n### The `page_info` Property\n\nThis property gives you the total number of objects contained in this particular\nqueryset (`count` property), and allows you to know if the page you have queried\nis the last of a given view (`has_next_page` parameter).\n\n### About ordering\n\nBy default, results are sorted by creation date in descending order,\nnewest objects being first.\n\nWe believe this makes search results more useful, but it can also be an issue\nwhen new objects are regularly added as this could affect pagination, creating\nwhat looks like duplicates in two successive pages.\n\nThis is particularly the case for transactions. If you were to successively\nfetch the first two pages of your transactions, and 20 new transactions were\ncreated between the two GET calls, then both responses would contain the exact\nsame results.\n\nThis issue can be avoided by making further use of filters (on\naccounts, creation date, etc.) and we recommend that you always de-duplicate by\nusing the object ids.\n\n# Authentication\n\n<!-- ReDoc-Inject: <security-definitions> -->",
+    "title": "Vault API",
+    "version": "1.3-rc6",
+    "x-logo": {
+      "url": "https://www.ledger.com/wp-content/themes/ledger-v2/public/images/ledger.svg"
+    }
+  },
+  "security": [
+    {
+      "Ledger_API_Key": [],
+      "Ledger_API_User": []
+    },
+    {
+      "Ledger_API_Key": [],
+      "Ledger_API_User": [],
+      "Ledger_Store_Auth_Token": []
+    },
+    {
+      "Ledger_API_User": []
+    },
+    {
+      "Ledger_API_User": [],
+      "Ledger_Store_Auth_Token": []
+    }
+  ],
+  "tags": [
+    {
+      "description": "The notification feature allows you to be notified when an API user\nreceives an important event.\n\nTo receive a webhook notification, you must first register your\ntarget endpoint via `PUT /notifications/configuration`\n\nOnce done, your web server will be called via POST with a json payload\nsuch as this one:\n```\n {'payload_type': 'TRANSACTION', 'event_type': 'NEW_TRANSACTION_HAS_BEEN_RECEIVED', 'id': 10}\n```\n\n- `payload_type`: Enum identifying the type of the Vault object the notification is about.\n- `event_type`: Enum identifying uniquely the exact event that triggered the notification.\nCan be used to run specific actions for specific events.\n- `id`: Id of the Vault object. Together with `payload_type` they allow you to fetch the full\nobject with the corresponding endpoint.\n\nBelow is a list and short description of the event types API operators can receive:\n\n| Event Type | Payload Type | Description |\n|------------|--------------|-------------|\n| NEW_TRANSACTION_HAS_BEEN_SIGNED | TRANSACTION | A new transaction has been signed by the HSM |\n| NEW_TRANSACTION_HAS_BEEN_BROADCASTED | TRANSACTION | An new transaction has been broadcast |\n| NEW_TRANSACTION_HAS_FAILED | TRANSACTION | A new transaction has failed upon broadcast |\n| NEW_TRANSACTION_HAS_BEEN_ABORTED | TRANSACTION | A new transaction has been aborted by a User |\n| NEW_TRANSACTION_HAS_BEEN_RECEIVED | TRANSACTION | An new transaction has been received |\n| REQUEST_HAS_BEEN_CREATED | REQUEST | A new request has been created |\n| REQUEST_HAS_RECEIVED_AN_APPROVAL | REQUEST | A request has received an approval |\n| REQUEST_HAS_REACHED_STEP | REQUEST | A request has reached a new approval step |\n| REQUEST_HAS_REACHED_QUORUM | REQUEST | A request has reached the required quorum |\n| REQUEST_HAS_BEEN_ABORTED | REQUEST | A request has been aborted |\n| REQUEST_HAS_EXPIRED | REQUEST | A request has been pending for too long and has expired |\n\nBy design, we've reduced the number of information in the payload to the minimum\nas we can't guarantee the security of the channel the same way we do with LAM.\n\nHowever, with the provided `id` you can query LAM to get more information.\n\nYou can also make sure the payload is genuine with the shared secret you've\nprovided during registration.\nWe send you the following HTTP Header `X-Ledger-Signature: t=<timestamp>,v1=<signature>`\n  - `timestamp` is a unix epoch timestamp\n  - `signature` is a hmac sha256 signature computed with your secret and the\n concatenation of the:\n     - timestamp as a string\n     - character \".\"\n     - json payload\n\nHere is an example of signature validation and a request to LAM using python / flask:\n```python\nSECRET = \"mysecret\"\nUSER = \"api_lam_user\"\n\n\n@app.route(\"/\", methods=[\"POST\"])\ndef webhook():\n    ledger_signature = request.headers[\"X-Ledger-Signature\"]\n    for elem in ledger_signature.split(\",\"):\n        k, v = elem.split(\"=\")\n        if k == \"t\":\n            timestamp = v\n        elif k == \"v1\":\n            signature = v\n\n    if time.time() - int(timestamp) > 5 * 60:\n        raise ValueError(\"message is too old, possible replay attack\")\n\n    to_sign = timestamp.encode() + b\".\" + request.data\n    computed_signature = hmac.new(SECRET.encode(), to_sign, \"sha256\").hexdigest()\n    if not hmac.compare_digest(signature, computed_signature):\n        raise ValueError(\"signature mismatch\")\n\n    if request.json.get(\"payload_type\") == \"TRANSACTION\":\n        tx_id = request.json[\"id\"]\n        tx = requests.get(\n            f\"http://vault-lam:5000/transactions/{tx_id}\",\n            headers={\"X-Ledger-API-User\": USER, \"Content-Type\": \"application/json\"},\n        )\n        print(tx.json())\n        # do something with the transaction\n```",
+      "name": "Notifications"
+    },
+    {
+      "description": "A Request represents the intent of creating or changing an object in the system.\n\nFor example, when you create a transaction, a *Create transaction* request is created.\n\nYou can observe all the changes in the system via `GET /requests`.\nEvery request has a `target_type` and `target_id` that you can use to fetch\nthe object targeted by this request.\n\nFor example, you can list all requests waiting for approval:\n```\nGET /requests?status=PENDING_APPROVAL\n{\n  \"edges\": [\n    {\n      \"cursor\": 0,\n      \"node\": {\n        \"created_by\": 5,\n        \"created_on\": \"2020-09-25T13:52:38.377654+00:00\",\n        \"expires_at\": \"2020-10-02T13:52:38.377605+00:00\",\n        \"id\": 20,\n        \"status\": \"PENDING_APPROVAL\",\n        \"target_id\": 13,\n        \"target_type\": \"USER\",\n        \"type\": \"REVOKE_USER\"\n      }\n    },\n    {\n      \"cursor\": 1,\n      \"node\": {\n        \"created_by\": 11,\n        \"created_on\": \"2020-09-25T13:52:53.421567+00:00\",\n        \"expires_at\": \"2020-10-02T13:52:53.421502+00:00\",\n        \"id\": 21,\n        \"status\": \"PENDING_APPROVAL\",\n        \"target_id\": 3681,\n        \"target_type\": \"TRANSACTION\",\n        \"type\": \"CREATE_TRANSACTION\"\n      }\n    }\n  ],\n  \"page_info\": {\n    \"count\": 2,\n    \"has_next_page\": false\n  }\n}\n```\nHere we have 2 requests waiting for approval. You can have more info on\nthose 2 objects via\n```\nGET /users/13\nGET /transactions/3681\n```",
+      "name": "Requests"
+    },
+    {
+      "description": "Blockchain transactions have multiple value fields that may refer to different currencies.\nFor example, `amount` is always expressed in the unit of the account (Bitcoin, ERC20, Ripple, ...).\nHowever `max_fees` will always be in Ethereum, even in the case of ERC20 transactions.\n\nWhen fetching transactions, we will always express the value in the lowest available unit.\nFor a Bitcoin account, the `amount` returned via `GET /transactions` will be in satoshi (`sat`).\n\nYou can inspect the units available via a call to [`GET /accounts/<id>/currency`](#tag/Accounts/paths/~1accounts~1{account_id}~1currency/get).\n\nIf you create a transaction, you must specify the unit to use to interpret both `amount` and `max_fees`.\nIn this case `amount` and `max_fees` is not an integer but an object.\n\nFor that reason, they are represented as a map of two fields: [`unit`](#tag/Accounts/paths/~1accounts~1{account_id}~1currency/get) and `value`.\n\nFor your convenience, you can choose any of the following representation to transfer 0.001 BTC:\n\n```\n  \"amount\": {\n    \"unit\": \"BTC\",\n    \"value\": \"0.001\"\n  }\n```\n```\n  \"amount\": {\n    \"unit\": \"mBTC\",\n    \"value\": \"0.1\"\n  }\n```\n```\n  \"amount\": {\n    \"unit\": \"bit\",\n    \"value\": \"1000\"\n  }\n```\n```\n  \"amount\": {\n    \"unit\": \"sat\",\n    \"value\": \"100000\"\n  }\n```\n\nAs the response is always expressed in the lowest unit, the reply will be\n```\n \"amount\": \"100000\"\n```",
+      "name": "Transactions"
+    }
+  ],
+  "paths": {
+    "/accounts": {
+      "get": {
+        "summary": "Search accounts",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "Use the following parameters to search accounts.",
+        "parameters": [
+          {
+            "name": "account_type",
+            "in": "query",
+            "description": "Filters the results on the crypto asset type.",
+            "required": false,
+            "schema": {
+              "enum": [
+                "Bitcoin",
+                "Erc20",
+                "Ethereum",
+                "Ripple",
+                "Stellar",
+                "Tezos"
+              ],
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "Returns objects created after the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-09-12T14:15:22Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "description": "Returns objects created before the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-12-13T16:17:28Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "description": "Filters the results by the account's currency.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "bitcoin or ethereum:0xdAC17F958D2ee523a2206206994597C13D831ec7",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "description": "An entity to filter account by",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "type": "integer"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "description": "Lists accounts linked to the entered group.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Returns the object corresponding to the entered ID",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Filters the list by account name.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "hot wallet 1",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Orders the list of results",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "example": "desc",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "criteria to order by",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "name",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Defines the page number to be fetched.",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 3,
+              "minimum": 1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Defines the number of elements displayed on a page. Must be a positive number with 0 and -1 being special values to return a maximum defined in the gate",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 40,
+              "minimum": -1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "parent",
+            "in": "query",
+            "description": "Filters the list of results to display accounts linked to the entered parent account.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Returns objects that match the selected status.",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ACTIVE",
+                "APPROVED",
+                "HSM_COIN_UPDATED",
+                "MIGRATED",
+                "PENDING",
+                "PENDING_CREATE_IN_HSM",
+                "PENDING_MIGRATED",
+                "PENDING_VIEW_ONLY",
+                "REJECTED",
+                "VIEW_ONLY"
+              ],
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "description": "Filters the list to display accounts the entered user belongs to.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_APISearchAccountResults"
+                }
+              }
+            },
+            "description": "Account search results"
+          },
+          "400": {
+            "description": "Invalid search parameter"
+          },
+          "404": {
+            "description": "This search parameter doesn't exist"
+          }
+        }
+      }
+    },
+    "/accounts/{account_id}": {
+      "get": {
+        "summary": "Get an account by ID",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "This method returns the account that matches the entered ID.",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "The account's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "Account object"
+          },
+          "404": {
+            "description": "Account not found"
+          }
+        }
+      }
+    },
+    "/accounts/{account_id}/addresses": {
+      "get": {
+        "summary": "Generate a new receiving address for an account",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "This method generates a new receiving address for the provided account ID.",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "The account's ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressesLAM"
+                }
+              }
+            },
+            "description": "New address generated"
+          },
+          "404": {
+            "description": "Provided index invalid"
+          }
+        }
+      }
+    },
+    "/accounts/{account_id}/addresses/{index}": {
+      "get": {
+        "summary": "Get receiving addresses of an account",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "This method generates the receiving address corresponding to the entered index. The index must already be used or be the next one available. Check the derivation path parameter number to find out how many have already been generated. This functionaltity is available for UTXO-based currencies only.",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "The account's ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressLAM"
+                }
+              }
+            },
+            "description": "Address generated"
+          },
+          "404": {
+            "description": "No address matches the provided index"
+          }
+        }
+      }
+    },
+    "/accounts/{account_id}/currency": {
+      "get": {
+        "summary": "Get the account's currency",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "This method returns the account's currency.\n\nThe currency with \"magnitude\" 0 is always the default unit, this\nwill be the unit used by `GET /transactions`.\n\nFrom this point, you can deduce all the other units.\n\nFor example, these are the units used by bitcoin accounts:\n ```\n  \"amount_units\": [\n    {\n     \"code\": \"sat\",\n     \"magnitude\": 0\n    },\n    {\n     \"code\": \"bit\",\n     \"magnitude\": 2\n    },\n    {\n     \"code\": \"mBTC\",\n     \"magnitude\": 5\n    },\n    {\n     \"code\": \"BTC\",\n     \"magnitude\": 8\n    }\n   ]\n ```\n So we know `1BTC = 100000000sat` and `1mBTC = 100bit`, and all transactions\n will be expressed in `sat`.\n",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "The account's ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountCurrency"
+                }
+              }
+            },
+            "description": "Account currency"
+          },
+          "404": {
+            "description": "Account not found"
+          }
+        }
+      }
+    },
+    "/accounts/{account_id}/history": {
+      "get": {
+        "summary": "Get the account's history",
+        "tags": [
+          "Accounts"
+        ],
+        "description": "This method returns the account's history.",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "The account's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIHistoryResults"
+                }
+              }
+            },
+            "description": "Account history"
+          },
+          "404": {
+            "description": "Account not found"
+          }
+        }
+      }
+    },
+    "/api_users": {
+      "get": {
+        "summary": "Get list of API users",
+        "tags": [
+          "API Users"
+        ],
+        "description": "Get list of API users",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIUserList"
+                }
+              }
+            },
+            "description": "list of API users"
+          }
+        },
+        "security": [
+          {
+            "Ledger_API_Key": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create an API user",
+        "tags": [
+          "API Users"
+        ],
+        "description": "Create an API user.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/APIUserName"
+              }
+            }
+          },
+          "description": "API User Name",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIUser"
+                }
+              }
+            },
+            "description": "API user object"
+          },
+          "400": {
+            "description": "User already exists"
+          }
+        },
+        "security": [
+          {
+            "Ledger_API_Key": []
+          }
+        ]
+      }
+    },
+    "/api_users/{name}": {
+      "get": {
+        "summary": "Get API user",
+        "tags": [
+          "API Users"
+        ],
+        "description": "Get API user by name",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The user's name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "api_lam_user"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIUser"
+                }
+              }
+            },
+            "description": "API user object"
+          },
+          "404": {
+            "description": "user name does not exist"
+          }
+        },
+        "security": [
+          {
+            "Ledger_API_Key": []
+          }
+        ]
+      }
+    },
+    "/api_users/{name}/register/{url_id}": {
+      "post": {
+        "summary": "Register the API user",
+        "tags": [
+          "API Users"
+        ],
+        "description": "Register the API user on the Ledger Vault.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "The user's name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "api_lam_user"
+          },
+          {
+            "name": "url_id",
+            "in": "path",
+            "description": "The ID provided in the invitation URL.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "dbb3a760-b876-4400-afa1-9d435bfd33be"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResponse"
+                }
+              }
+            },
+            "description": "API user registered"
+          }
+        },
+        "security": [
+          {
+            "Ledger_API_Key": []
+          }
+        ]
+      }
+    },
+    "/currencies": {
+      "get": {
+        "summary": "List currencies",
+        "tags": [
+          "Currencies"
+        ],
+        "description": "Returns the list of currencies supported on the Ledger Vault.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyList"
+                }
+              }
+            },
+            "description": "Currency list"
+          }
+        }
+      }
+    },
+    "/currencies/{currency_name}": {
+      "get": {
+        "summary": "Get currency by name",
+        "tags": [
+          "Currencies"
+        ],
+        "description": "Returns the requested currency.",
+        "parameters": [
+          {
+            "name": "currency_name",
+            "in": "path",
+            "description": "The currency name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Currency"
+                }
+              }
+            },
+            "description": "Currency object"
+          },
+          "404": {
+            "description": "Currency not found"
+          }
+        }
+      }
+    },
+    "/currencies/{currency_name}/{address}": {
+      "get": {
+        "summary": "Check that the currency name and address pair is valid.",
+        "tags": [
+          "Currencies"
+        ],
+        "description": "Returns a boolean indicating the validity of the address",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "description": "Address to validate.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency_name",
+            "in": "path",
+            "description": "The currency name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressValidation"
+                }
+              }
+            },
+            "description": "Address validation result"
+          },
+          "404": {
+            "description": "Currency not found"
+          }
+        }
+      }
+    },
+    "/entities": {
+      "get": {
+        "tags": [
+          "Entities"
+        ],
+        "description": "Search Entity",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "description": "Filters by account tied to this entity",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "type": "integer"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "Returns objects created after the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-09-12T14:15:22Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "description": "Returns objects created before the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-12-13T16:17:28Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "description": "Lists entities linked to the entered group.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "type": "integer"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Returns the object corresponding to the entered ID",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Filters the list by entity name.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "trading_entity_1",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Orders the list of results",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "example": "desc",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "criteria to order by",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "name",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Defines the page number to be fetched.",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 3,
+              "minimum": 1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Defines the number of elements displayed on a page. Must be a positive number with 0 and -1 being special values to return a maximum defined in the gate",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 40,
+              "minimum": -1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Returns objects that match the selected status.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "enum": [
+                  "ACTIVE",
+                  "PENDING",
+                  "REJECTED",
+                  "REVOKED"
+                ],
+                "type": "string"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "description": "Filters the list to display accounts the entered user belongs to.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "type": "integer"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_APISearchEntitiesResults"
+                }
+              }
+            },
+            "description": "entity search results"
+          },
+          "400": {
+            "description": "invalid search parameters"
+          }
+        }
+      }
+    },
+    "/entities/{entity_id}": {
+      "get": {
+        "tags": [
+          "Entity"
+        ],
+        "description": "Get a entity by id",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "description": "entity's id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entity"
+                }
+              }
+            },
+            "description": "entity object"
+          },
+          "404": {
+            "description": "entity not found"
+          }
+        }
+      }
+    },
+    "/entities/{entity_id}/history": {
+      "get": {
+        "tags": [
+          "Entity"
+        ],
+        "description": "Get entity history",
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "description": "entity's id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIHistoryResults"
+                }
+              }
+            },
+            "description": "entity history"
+          },
+          "404": {
+            "description": "entity not found"
+          }
+        }
+      }
+    },
+    "/erc20s/{contract_address}": {
+      "get": {
+        "summary": "Get an ERC20 token by address",
+        "tags": [
+          "Currencies"
+        ],
+        "description": "Returns the ERC20 token corresponding to the requested contract address.",
+        "parameters": [
+          {
+            "name": "contract_address",
+            "in": "path",
+            "description": "The ERC20 token contract address.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erc20"
+                }
+              }
+            },
+            "description": "ERC20 token"
+          },
+          "404": {
+            "description": "ERC20 token not found"
+          }
+        }
+      }
+    },
+    "/groups": {
+      "get": {
+        "summary": "Search group",
+        "tags": [
+          "Groups"
+        ],
+        "description": "Use the following parameters to search groups.",
+        "parameters": [
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "Returns objects created after the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-09-12T14:15:22Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "description": "Returns objects created before the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-12-13T16:17:28Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "description": "Returns objects that contain the entered description.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Returns the object corresponding to the entered ID",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "members",
+            "in": "query",
+            "description": "Returns ojects that contain the entered member(s).",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "type": "integer"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Returns the object that match the entered name.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Orders the list of results",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "example": "desc",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "criteria to order by",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "name",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Defines the page number to be fetched.",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 3,
+              "minimum": 1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Defines the number of elements displayed on a page. Must be a positive number with 0 and -1 being special values to return a maximum defined in the gate",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 40,
+              "minimum": -1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Returns objects that match the selected status.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "enum": [
+                  "ACTIVE",
+                  "PENDING",
+                  "REJECTED",
+                  "REVOKED"
+                ],
+                "type": "string"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_APISearchGroupResults"
+                }
+              }
+            },
+            "description": "Group search results"
+          },
+          "400": {
+            "description": "Invalid search parameters"
+          }
+        }
+      }
+    },
+    "/groups/{group_id}": {
+      "get": {
+        "summary": "Get group by ID",
+        "tags": [
+          "Groups"
+        ],
+        "description": "This method returns the group that matches the entered ID.",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "description": "group's id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Group"
+                }
+              }
+            },
+            "description": "Group object"
+          },
+          "404": {
+            "description": "Group not found"
+          }
+        }
+      }
+    },
+    "/groups/{group_id}/history": {
+      "get": {
+        "summary": "Get group history",
+        "tags": [
+          "Groups"
+        ],
+        "description": "This method returns the group's history.",
+        "parameters": [
+          {
+            "name": "group_id",
+            "in": "path",
+            "description": "The group's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIHistoryResults"
+                }
+              }
+            },
+            "description": "Group history"
+          },
+          "404": {
+            "description": "Group not found"
+          }
+        }
+      }
+    },
+    "/notifications/configuration": {
+      "get": {
+        "summary": "Get notification configuration",
+        "tags": [
+          "Notifications"
+        ],
+        "description": "This method returns the notification configuration set for the current user.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Configuration"
+                }
+              }
+            },
+            "description": "Current user notification configuration"
+          },
+          "404": {
+            "description": "Current user doesn't have any configuration"
+          }
+        }
+      },
+      "put": {
+        "summary": "Set notification configuration",
+        "tags": [
+          "Notifications"
+        ],
+        "description": "This method allows you to set the notification configuration for the current user.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Configuration"
+              }
+            }
+          },
+          "description": "Configuration to create",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Configuration"
+                }
+              }
+            },
+            "description": "Current user notification configuration"
+          }
+        }
+      }
+    },
+    "/organization": {
+      "get": {
+        "summary": "Default organization",
+        "tags": [
+          "Organizations"
+        ],
+        "description": "This method returns the default organization.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            },
+            "description": "Organization object"
+          }
+        }
+      }
+    },
+    "/requests": {
+      "get": {
+        "summary": "Search Request",
+        "tags": [
+          "Requests"
+        ],
+        "description": "Use the following parameters to search requests.",
+        "parameters": [
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "Returns objects created after the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-09-12T14:15:22Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "description": "Returns objects created before the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-12-13T16:17:28Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Returns the object corresponding to the entered ID",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Orders the list of results",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "example": "desc",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "criteria to order by",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "name",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Defines the page number to be fetched.",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 3,
+              "minimum": 1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Defines the number of elements displayed on a page. Must be a positive number with 0 and -1 being special values to return a maximum defined in the gate",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 40,
+              "minimum": -1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Returns objects that match the selected status.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "enum": [
+                  "ACTIVE",
+                  "APPROVED",
+                  "BLOCKED",
+                  "EXPIRED",
+                  "PENDING_APPROVAL",
+                  "PENDING_FIRST_APPROVAL",
+                  "PENDING_REGISTRATION",
+                  "REJECTED",
+                  "SIGNED",
+                  "SUBMITTED"
+                ],
+                "type": "string"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "target_id",
+            "in": "query",
+            "description": "Search by ID of the target object.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "target_type",
+            "in": "query",
+            "description": "Search requests by object type.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "enum": [
+                  "ACCOUNT",
+                  "GROUP",
+                  "TRANSACTION",
+                  "USER",
+                  "WHITELIST"
+                ],
+                "type": "string"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Search requests by request type.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "enum": [
+                  "CREATE_ACCOUNT",
+                  "CREATE_ADMIN",
+                  "CREATE_GROUP",
+                  "CREATE_OPERATOR",
+                  "CREATE_TRANSACTION",
+                  "CREATE_WHITELIST",
+                  "EDIT_ACCOUNT",
+                  "EDIT_GROUP",
+                  "EDIT_WHITELIST",
+                  "MIGRATE_ACCOUNT",
+                  "REVOKE_GROUP",
+                  "REVOKE_USER",
+                  "UPDATE_QUORUM"
+                ],
+                "type": "string"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_APISearchRequestResults"
+                }
+              }
+            },
+            "description": "Request search results"
+          },
+          "400": {
+            "description": "Invalid search parameters"
+          }
+        }
+      }
+    },
+    "/requests/{request_id}": {
+      "get": {
+        "summary": "Get request by id",
+        "tags": [
+          "Requests"
+        ],
+        "description": "This method returns the request that matches the entered ID.",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "The request's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Request"
+                }
+              }
+            },
+            "description": "Request object"
+          },
+          "404": {
+            "description": "Request not found"
+          }
+        }
+      }
+    },
+    "/transactions": {
+      "get": {
+        "summary": "Search Transaction",
+        "tags": [
+          "Transactions"
+        ],
+        "description": "Use the following parameters to search transactions.\n\nBeware that default order is \"desc\", which can cause surprising\nresult with pagination if transactions are being inserted.\nsee [Pagination](#section/Introduction/Pagination) for more details\n",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "description": "Returns transactions created in the provided account.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "type": "integer"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "Returns objects created after the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-09-12T14:15:22Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "description": "Returns objects created before the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-12-13T16:17:28Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "description": "Returns transactions created in the provided currency.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "example": "bitcoin or ethereum:0xdAC17F958D2ee523a2206206994597C13D831ec7",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "destination_tag",
+            "in": "query",
+            "description": "Returns transactions that match the provided destination tag (XRP only).",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Returns the object corresponding to the entered ID",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "label",
+            "in": "query",
+            "description": "Returns object that contain the entered label.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "max_amount",
+            "in": "query",
+            "description": "Returns objects that have the provided max amount.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "pattern": "^[0-9]*(\\.[0-9]+)?$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "memo",
+            "in": "query",
+            "description": "representation of the memo - an ascii, hex string or base 10 integer",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "min_amount",
+            "in": "query",
+            "description": "Returns objects that have the provided min amount.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "pattern": "^[0-9]*(\\.[0-9]+)?$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Orders the list of results",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "example": "desc",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "criteria to order by",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "name",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Defines the page number to be fetched.",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 3,
+              "minimum": 1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Defines the number of elements displayed on a page. Must be a positive number with 0 and -1 being special values to return a maximum defined in the gate",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 40,
+              "minimum": -1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "recipient",
+            "in": "query",
+            "description": "Filters the results on the provided recipient address.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Returns objects that match the selected status.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "enum": [
+                  "APPROVED",
+                  "CONFIRMED",
+                  "DROPPED",
+                  "FAILED",
+                  "FAILED_TO_BROADCAST",
+                  "PENDING_APPROVAL",
+                  "REJECTED",
+                  "SIGNED",
+                  "SUBMITTED"
+                ],
+                "type": "string"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "tx_hash",
+            "in": "query",
+            "description": "Returns transactions that match the provided transaction hash.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filters the list of results by transaction type.",
+            "required": false,
+            "schema": {
+              "enum": [
+                "RECEIVE",
+                "SEND"
+              ],
+              "nullable": true,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_APISearchTransactionResults"
+                }
+              }
+            },
+            "description": "Transaction search results"
+          },
+          "400": {
+            "description": "Invalid search parameters"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a transaction",
+        "tags": [
+          "Transactions"
+        ],
+        "description": "Create a transaction.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionCreationDataLAM"
+              }
+            }
+          },
+          "description": "attributes of the transaction to create",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Transaction to approve"
+          },
+          "400": {
+            "description": "Invalid transaction parameters"
+          }
+        }
+      }
+    },
+    "/transactions/{transaction_id}": {
+      "get": {
+        "summary": "Get a transaction by id",
+        "tags": [
+          "Transactions"
+        ],
+        "description": "This method returns the transaction that matches the entered ID.",
+        "parameters": [
+          {
+            "name": "transaction_id",
+            "in": "path",
+            "description": "The transaction's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Transaction object"
+          },
+          "404": {
+            "description": "Transaction not found"
+          }
+        }
+      }
+    },
+    "/transactions/{transaction_id}/approve": {
+      "post": {
+        "summary": "Approve Transaction",
+        "tags": [
+          "Transactions"
+        ],
+        "description": "In this endpoint, enter the exact same values that were used when creating the transaction (for example, `max_fees` must be the exact same values).\n\nYou can retrieve transactions \"pending approval\" with `GET /transactions?status=PENDING_APPROVAL`.\n\nHowever, you should NOT trust those values and you should implement your own source of trust.",
+        "parameters": [
+          {
+            "name": "transaction_id",
+            "in": "path",
+            "description": "The transaction's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionApprovalDataLAM"
+              }
+            }
+          },
+          "description": "attributes of the transaction to approve",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "The approved transaction"
+          },
+          "400": {
+            "description": "Invalid transaction parameters"
+          },
+          "404": {
+            "description": "Transaction not found"
+          }
+        }
+      }
+    },
+    "/transactions/{transaction_id}/history": {
+      "get": {
+        "summary": "Transaction history",
+        "tags": [
+          "Transactions"
+        ],
+        "description": "This method returns the transaction's history.",
+        "parameters": [
+          {
+            "name": "transaction_id",
+            "in": "path",
+            "description": "The transaction's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIHistoryResults"
+                }
+              }
+            },
+            "description": "Transaction history"
+          },
+          "404": {
+            "description": "Transaction not found"
+          }
+        }
+      }
+    },
+    "/transactions/{transaction_id}/reject": {
+      "post": {
+        "summary": "Reject a transaction",
+        "tags": [
+          "Transactions"
+        ],
+        "description": "Reject a transaction pending approval.",
+        "parameters": [
+          {
+            "name": "transaction_id",
+            "in": "path",
+            "description": "The transaction's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "The rejected transaction"
+          },
+          "404": {
+            "description": "Transaction not found"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "summary": "Search User",
+        "tags": [
+          "Users"
+        ],
+        "description": "Use the following parameters to search users.",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "description": "Returns objects created in the provided account.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "Returns objects created after the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-09-12T14:15:22Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "description": "Returns objects created before the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-12-13T16:17:28Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "description": "Lists users who belong to the entered groups.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Returns the object corresponding to the entered ID",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Orders the list of results",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "example": "desc",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "criteria to order by",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "name",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Defines the page number to be fetched.",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 3,
+              "minimum": 1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Defines the number of elements displayed on a page. Must be a positive number with 0 and -1 being special values to return a maximum defined in the gate",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 40,
+              "minimum": -1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "description": "Returns object who hold the selected user role.",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ADMIN",
+                "ADMIN_SYSTEM",
+                "OPERATOR",
+                "SHARED_OWNER",
+                "WRAPPING_KEYS"
+              ],
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Returns users who match the selected status.",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ACCESS_SUSPENDED",
+                "ACTIVE",
+                "PENDING_APPROVAL",
+                "PENDING_REGISTRATION",
+                "PENDING_REVOCATION",
+                "REJECTED",
+                "REVOKED"
+              ],
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "username",
+            "in": "query",
+            "description": "Returns the object who has the entered username.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_APISearchUserResults"
+                }
+              }
+            },
+            "description": "User search results"
+          },
+          "400": {
+            "description": "Invalid search parameters"
+          }
+        }
+      }
+    },
+    "/users/{user_id}": {
+      "get": {
+        "summary": "Get a user by id",
+        "tags": [
+          "Users"
+        ],
+        "description": "This method returns the user that matches the entered ID.",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "The user's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "User object"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/users/{user_id}/history": {
+      "get": {
+        "summary": "Get user history",
+        "tags": [
+          "Users"
+        ],
+        "description": "This method returns the user's history.",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "The user's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIHistoryResults"
+                }
+              }
+            },
+            "description": "User history"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/whitelists": {
+      "get": {
+        "summary": "Search Whitelist",
+        "tags": [
+          "Whitelists"
+        ],
+        "description": "Use the following parameters to search whitelists.",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "description": "Filters the list by account name.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "type": "integer"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "description": "Filters the list by address.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "Returns objects created after the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-09-12T14:15:22Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "description": "Returns objects created before the entered date.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "2020-12-13T16:17:28Z",
+              "format": "date-time",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "description": "Returns objects that contain the entered description.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Returns the object corresponding to the entered ID",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Filters the list by whitelist name.",
+            "required": false,
+            "schema": {
+              "default": null,
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Orders the list of results",
+            "required": false,
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "example": "desc",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "description": "criteria to order by",
+            "required": false,
+            "schema": {
+              "default": null,
+              "example": "name",
+              "nullable": true,
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Defines the page number to be fetched.",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "example": 3,
+              "minimum": 1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "Defines the number of elements displayed on a page. Must be a positive number with 0 and -1 being special values to return a maximum defined in the gate",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "example": 40,
+              "minimum": -1,
+              "nullable": true,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Returns objects that match the selected status.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "default": null,
+              "items": {
+                "enum": [
+                  "ACTIVE",
+                  "PENDING",
+                  "REJECTED",
+                  "REVOKED"
+                ],
+                "type": "string"
+              },
+              "nullable": true,
+              "type": "array"
+            },
+            "style": "form"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/_APISearchWhitelistResults"
+                }
+              }
+            },
+            "description": "Whitelist search results"
+          },
+          "400": {
+            "description": "Invalid search parameters"
+          }
+        }
+      }
+    },
+    "/whitelists/{whitelist_id}": {
+      "get": {
+        "summary": "Get whitelist by id",
+        "tags": [
+          "Whitelists"
+        ],
+        "description": "This method returns the whitelist that matches the entered ID.",
+        "parameters": [
+          {
+            "name": "whitelist_id",
+            "in": "path",
+            "description": "The whitelist's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Whitelist"
+                }
+              }
+            },
+            "description": "Whitelist object"
+          },
+          "404": {
+            "description": "Whitelist not found"
+          }
+        }
+      }
+    },
+    "/whitelists/{whitelist_id}/history": {
+      "get": {
+        "summary": "Get whitelist history",
+        "tags": [
+          "Whitelists"
+        ],
+        "description": "This method returns the whitelist's history.",
+        "parameters": [
+          {
+            "name": "whitelist_id",
+            "in": "path",
+            "description": "The whitelist's ID.",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIHistoryResults"
+                }
+              }
+            },
+            "description": "Whitelist history"
+          },
+          "404": {
+            "description": "Whitelist not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "APIHistoryResult": {
+        "properties": {
+          "created_by": {
+            "example": 5,
+            "type": "integer"
+          },
+          "created_on": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expired_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_complete": {
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "APPROVED",
+              "BLOCKED",
+              "EXPIRED",
+              "PENDING_APPROVAL",
+              "PENDING_FIRST_APPROVAL",
+              "PENDING_REGISTRATION",
+              "REJECTED",
+              "SIGNED",
+              "SUBMITTED"
+            ],
+            "example": "ACTIVE",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "CREATE_ACCOUNT",
+              "CREATE_ADMIN",
+              "CREATE_GROUP",
+              "CREATE_OPERATOR",
+              "CREATE_TRANSACTION",
+              "CREATE_WHITELIST",
+              "EDIT_ACCOUNT",
+              "EDIT_GROUP",
+              "EDIT_WHITELIST",
+              "MIGRATE_ACCOUNT",
+              "REVOKE_GROUP",
+              "REVOKE_USER",
+              "UPDATE_QUORUM"
+            ],
+            "example": "CREATE_ACCOUNT",
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_by",
+          "created_on",
+          "expired_at",
+          "id",
+          "is_complete",
+          "status",
+          "type"
+        ],
+        "type": "object"
+      },
+      "APIHistoryResults": {
+        "properties": {
+          "history": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/APIHistoryResult"
+              },
+              "type": "array"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "history"
+        ],
+        "type": "object"
+      },
+      "APISearchPageInfo": {
+        "properties": {
+          "count": {
+            "example": 1,
+            "type": "integer"
+          },
+          "has_next_page": {
+            "example": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "count",
+          "has_next_page"
+        ],
+        "type": "object"
+      },
+      "APIUser": {
+        "properties": {
+          "device_id": {
+            "example": "1a24480566ce42c2",
+            "type": "string"
+          },
+          "name": {
+            "description": "Api user name",
+            "example": "api_lam_user",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "OPERATOR"
+            ],
+            "example": "OPERATOR",
+            "type": "string"
+          },
+          "type_": {
+            "enum": [
+              "SOFT_PSD"
+            ],
+            "example": "SOFT_PSD",
+            "type": "string"
+          },
+          "workspace": {
+            "description": "Your workspace",
+            "example": "crypstocks",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "name",
+          "role",
+          "type_",
+          "workspace"
+        ],
+        "type": "object"
+      },
+      "APIUserList": {
+        "properties": {
+          "api_users": {
+            "items": {
+              "$ref": "#/components/schemas/APIUser"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "api_users"
+        ],
+        "type": "object"
+      },
+      "APIUserName": {
+        "properties": {
+          "name": {
+            "description": "Api user name",
+            "example": "api_lam_user",
+            "pattern": "^\\w{1,20}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "Account": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "available_balance": {
+            "example": "1337",
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "balance": {
+            "example": "1338",
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "contract_address": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "created_by": {
+            "example": 5,
+            "type": "integer"
+          },
+          "created_on": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "enum": [
+              "Dollar",
+              "Euro",
+              "bitcoin",
+              "bitcoin_cash",
+              "bitcoin_gold",
+              "bitcoin_testnet",
+              "dash",
+              "digibyte",
+              "dogecoin",
+              "ethereum",
+              "ethereum_ropsten",
+              "komodo",
+              "litecoin",
+              "pivx",
+              "ripple",
+              "stellar",
+              "tezos",
+              "vertcoin",
+              "viacoin"
+            ],
+            "example": "bitcoin",
+            "type": "string"
+          },
+          "derivation_path": {
+            "example": "44'/0'/0'",
+            "type": "string"
+          },
+          "governance_rules": {
+            "items": {
+              "$ref": "#/components/schemas/AccountRuleSet"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "index": {
+            "example": 0,
+            "type": "integer"
+          },
+          "last_request": {
+            "default": null,
+            "example": 3,
+            "nullable": true,
+            "type": "integer"
+          },
+          "name": {
+            "example": "hot wallet 1",
+            "type": "string"
+          },
+          "parent": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "APPROVED",
+              "HSM_COIN_UPDATED",
+              "MIGRATED",
+              "PENDING",
+              "PENDING_CREATE_IN_HSM",
+              "PENDING_MIGRATED",
+              "PENDING_VIEW_ONLY",
+              "REJECTED",
+              "VIEW_ONLY"
+            ],
+            "example": "ACTIVE",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "Bitcoin",
+              "Erc20",
+              "Ethereum",
+              "Ripple",
+              "Stellar",
+              "Tezos"
+            ],
+            "example": "Bitcoin",
+            "type": "string"
+          },
+          "xpub": {
+            "default": null,
+            "example": "xpub6DGnkaitcjHaKFY18sqWhT3ghE6WWCS61BWn6BwmfzTvr3GHis274GFmXwh4P46s6ikgGEoFjzq4R3KyhUwkkGnXdrpha4QGo3n7PPSehvR",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "available_balance",
+          "balance",
+          "created_by",
+          "created_on",
+          "currency",
+          "derivation_path",
+          "governance_rules",
+          "id",
+          "index",
+          "name",
+          "status",
+          "type"
+        ],
+        "type": "object"
+      },
+      "AccountCurrency": {
+        "properties": {
+          "amount_units": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyUnit"
+            },
+            "type": "array"
+          },
+          "fees_units": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyUnit"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "amount_units",
+          "fees_units"
+        ],
+        "type": "object"
+      },
+      "AccountMultiauthRule": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AccountMultiauthRuleEntry"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "MULTI_AUTHORIZATIONS",
+              "THRESHOLD",
+              "WHITELIST"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "id",
+          "type"
+        ],
+        "type": "object"
+      },
+      "AccountMultiauthRuleEntry": {
+        "properties": {
+          "group": {
+            "type": "integer"
+          },
+          "quorum": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "group",
+          "quorum"
+        ],
+        "type": "object"
+      },
+      "AccountRuleSet": {
+        "properties": {
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "index": {
+            "example": 0,
+            "type": "integer"
+          },
+          "name": {
+            "example": "Rule 1",
+            "type": "string"
+          },
+          "rules": {
+            "example": {
+              "data": [
+                {
+                  "group": 2,
+                  "quorum": 1
+                },
+                {
+                  "group": 3,
+                  "quorum": 1
+                }
+              ],
+              "id": 1,
+              "type": "MULTI_AUTHORIZATIONS"
+            },
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/AccountWhitelistRule"
+                },
+                {
+                  "$ref": "#/components/schemas/AccountThresholdRule"
+                },
+                {
+                  "$ref": "#/components/schemas/AccountMultiauthRule"
+                }
+              ]
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "index",
+          "name",
+          "rules"
+        ],
+        "type": "object"
+      },
+      "AccountSearchResult": {
+        "properties": {
+          "cursor": {
+            "example": 0,
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/Account"
+          }
+        },
+        "required": [
+          "cursor",
+          "node"
+        ],
+        "type": "object"
+      },
+      "AccountThresholdRule": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AccountThresholdRuleEntry"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "MULTI_AUTHORIZATIONS",
+              "THRESHOLD",
+              "WHITELIST"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "id",
+          "type"
+        ],
+        "type": "object"
+      },
+      "AccountThresholdRuleEntry": {
+        "properties": {
+          "currency_type": {
+            "type": "string"
+          },
+          "max": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "min": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "currency_type",
+          "min"
+        ],
+        "type": "object"
+      },
+      "AccountWhitelistRule": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AccountWhitelistRuleEntry"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "MULTI_AUTHORIZATIONS",
+              "THRESHOLD",
+              "WHITELIST"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "id",
+          "type"
+        ],
+        "type": "object"
+      },
+      "AccountWhitelistRuleEntry": {
+        "properties": {
+          "whitelist": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "whitelist"
+        ],
+        "type": "object"
+      },
+      "AddressLAM": {
+        "properties": {
+          "address": {
+            "description": "The receive address",
+            "type": "string"
+          },
+          "derivation_path": {
+            "description": "Derivation Path",
+            "example": "0/18",
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "derivation_path"
+        ],
+        "type": "object"
+      },
+      "AddressValidation": {
+        "properties": {
+          "is_valid": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_valid"
+        ],
+        "type": "object"
+      },
+      "AddressesLAM": {
+        "properties": {
+          "addresses": {
+            "description": "The list of Address",
+            "items": {
+              "$ref": "#/components/schemas/AddressLAM"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "addresses"
+        ],
+        "type": "object"
+      },
+      "BitcoinFields": {
+        "additionalProperties": false,
+        "properties": {
+          "fees_per_byte": {
+            "default": null,
+            "description": "fees per bytes",
+            "nullable": true,
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "type": {
+            "default": "Bitcoin"
+          },
+          "utxo_picking_strategy": {
+            "description": "UTXO strategy used for this transaction",
+            "enum": [
+              "DEEP_OUTPUTS_FIRST",
+              "MERGE_OUTPUTS",
+              "OPTIMIZE_SIZE"
+            ],
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BitcoinFieldsLAM": {
+        "properties": {
+          "utxo_picking_strategy": {
+            "description": "When creating a Bitcoin transaction you can select which UTXOs\n        should be used among these three options:\n\n * Merge outputs: To select UTXOs which have the lowest amounts. This strategy is\nused by default.\n * Optimize size: To select UTXOs which have the highest amounts.\n * Deep outputs first: To select UTXOs which have the highest amount of\nconfirmations on the blockchain.\n",
+            "enum": [
+              "DEEP_OUTPUTS_FIRST",
+              "MERGE_OUTPUTS",
+              "OPTIMIZE_SIZE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "utxo_picking_strategy"
+        ],
+        "type": "object"
+      },
+      "Configuration": {
+        "properties": {
+          "all": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConfigurationProfile"
+              }
+            ],
+            "description": "configuration for all kind of notifications"
+          }
+        },
+        "required": [
+          "all"
+        ],
+        "type": "object"
+      },
+      "ConfigurationProfile": {
+        "properties": {
+          "webhook": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Webhook"
+              }
+            ],
+            "default": null,
+            "description": "webhook to be notified on",
+            "nullable": true
+          }
+        },
+        "type": "object"
+      },
+      "Currency": {
+        "additionalProperties": false,
+        "properties": {
+          "family": {
+            "enum": [
+              "bitcoin",
+              "ethereum",
+              "fiat",
+              "ripple",
+              "stellar",
+              "tezos"
+            ],
+            "example": "bitcoin",
+            "nullable": true,
+            "type": "string"
+          },
+          "name": {
+            "enum": [
+              "Dollar",
+              "Euro",
+              "bitcoin",
+              "bitcoin_cash",
+              "bitcoin_gold",
+              "bitcoin_testnet",
+              "dash",
+              "digibyte",
+              "dogecoin",
+              "ethereum",
+              "ethereum_ropsten",
+              "komodo",
+              "litecoin",
+              "pivx",
+              "ripple",
+              "stellar",
+              "tezos",
+              "vertcoin",
+              "viacoin"
+            ],
+            "example": "bitcoin",
+            "type": "string"
+          },
+          "num_confirmation_needed": {
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "CRYPTO",
+              "FIAT"
+            ],
+            "example": "CRYPTO",
+            "type": "string"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyUnit"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "num_confirmation_needed",
+          "type",
+          "units"
+        ],
+        "type": "object"
+      },
+      "CurrencyList": {
+        "properties": {
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/Currency"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "currencies"
+        ],
+        "type": "object"
+      },
+      "CurrencyUnit": {
+        "properties": {
+          "code": {
+            "example": "tBTC",
+            "type": "string"
+          },
+          "magnitude": {
+            "example": 8,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "magnitude"
+        ],
+        "type": "object"
+      },
+      "Entity": {
+        "additionalProperties": false,
+        "properties": {
+          "created_by": {
+            "example": 5,
+            "type": "integer"
+          },
+          "created_on": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "last_request": {
+            "example": 3,
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_by",
+          "created_on",
+          "groups",
+          "id",
+          "last_request",
+          "name",
+          "status"
+        ],
+        "type": "object"
+      },
+      "EntitySearchResult": {
+        "properties": {
+          "cursor": {
+            "example": 0,
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/Entity"
+          }
+        },
+        "required": [
+          "cursor",
+          "node"
+        ],
+        "type": "object"
+      },
+      "Erc20": {
+        "additionalProperties": false,
+        "properties": {
+          "contract_address": {
+            "description": "The ERC20 token contract address.",
+            "example": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+            "type": "string"
+          },
+          "name": {
+            "description": "The ERC20 token name.",
+            "example": "USD Tether (erc20)",
+            "type": "string"
+          },
+          "parent_currency": {
+            "enum": [
+              "Dollar",
+              "Euro",
+              "bitcoin",
+              "bitcoin_cash",
+              "bitcoin_gold",
+              "bitcoin_testnet",
+              "dash",
+              "digibyte",
+              "dogecoin",
+              "ethereum",
+              "ethereum_ropsten",
+              "komodo",
+              "litecoin",
+              "pivx",
+              "ripple",
+              "stellar",
+              "tezos",
+              "vertcoin",
+              "viacoin"
+            ],
+            "example": "ethereum",
+            "type": "string"
+          },
+          "units": {
+            "example": {
+              "code": "USDT",
+              "magnitude": 6
+            },
+            "items": {
+              "$ref": "#/components/schemas/CurrencyUnit"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contract_address",
+          "name",
+          "parent_currency",
+          "units"
+        ],
+        "type": "object"
+      },
+      "EthereumFields": {
+        "additionalProperties": false,
+        "properties": {
+          "gas_limit": {
+            "description": "gas limit in wei",
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "gas_price": {
+            "description": "gas price in wei",
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "type": {
+            "default": "Ethereum"
+          }
+        },
+        "required": [
+          "gas_limit",
+          "gas_price"
+        ],
+        "type": "object"
+      },
+      "EthereumFieldsLAM": {
+        "properties": {
+          "gas_limit": {
+            "description": "For Ethereum, specify a gas_limit, ignored if speed is not CUSTOM. The unit is wei. Decimal values are round down to integer",
+            "minimum": 1,
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "gas_price": {
+            "description": "For Ethereum, specify a gas_price, ignored if speed is not CUSTOM. The unit is wei. Decimal values are round down to integer",
+            "minimum": 1,
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gas_limit",
+          "gas_price"
+        ],
+        "type": "object"
+      },
+      "Group": {
+        "additionalProperties": false,
+        "properties": {
+          "created_by": {
+            "example": 5,
+            "type": "integer"
+          },
+          "created_on": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "example": "group of trusted validators",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "last_request": {
+            "example": 3,
+            "type": "integer"
+          },
+          "members": {
+            "example": [
+              11,
+              12
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "name": {
+            "example": "validators",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "PENDING",
+              "REJECTED",
+              "REVOKED"
+            ],
+            "example": "ACTIVE",
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_by",
+          "created_on",
+          "description",
+          "id",
+          "last_request",
+          "members",
+          "name",
+          "status"
+        ],
+        "type": "object"
+      },
+      "GroupSearchResult": {
+        "properties": {
+          "cursor": {
+            "example": 0,
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/Group"
+          }
+        },
+        "required": [
+          "cursor",
+          "node"
+        ],
+        "type": "object"
+      },
+      "HttpResponse": {
+        "properties": {
+          "success": {
+            "example": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "type": "object"
+      },
+      "Organization": {
+        "properties": {
+          "name": {
+            "example": "Crypstocks",
+            "type": "string"
+          },
+          "num_admins": {
+            "example": 3,
+            "type": "integer"
+          },
+          "num_shared_owners": {
+            "example": 3,
+            "type": "integer"
+          },
+          "num_wrapping_keys": {
+            "example": 3,
+            "type": "integer"
+          },
+          "quorum": {
+            "example": 2,
+            "type": "integer"
+          },
+          "workspace": {
+            "example": "crypstocks",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "num_admins",
+          "num_shared_owners",
+          "num_wrapping_keys",
+          "quorum",
+          "workspace"
+        ],
+        "type": "object"
+      },
+      "Request": {
+        "additionalProperties": false,
+        "properties": {
+          "created_by": {
+            "default": null,
+            "example": 12,
+            "nullable": true,
+            "type": "integer"
+          },
+          "created_on": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "APPROVED",
+              "BLOCKED",
+              "EXPIRED",
+              "PENDING_APPROVAL",
+              "PENDING_FIRST_APPROVAL",
+              "PENDING_REGISTRATION",
+              "REJECTED",
+              "SIGNED",
+              "SUBMITTED"
+            ],
+            "example": "PENDING_APPROVAL",
+            "type": "string"
+          },
+          "target_id": {
+            "example": 10,
+            "type": "integer"
+          },
+          "target_type": {
+            "enum": [
+              "ACCOUNT",
+              "GROUP",
+              "TRANSACTION",
+              "USER",
+              "WHITELIST"
+            ],
+            "example": "TRANSACTION",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "CREATE_ACCOUNT",
+              "CREATE_ADMIN",
+              "CREATE_GROUP",
+              "CREATE_OPERATOR",
+              "CREATE_TRANSACTION",
+              "CREATE_WHITELIST",
+              "EDIT_ACCOUNT",
+              "EDIT_GROUP",
+              "EDIT_WHITELIST",
+              "MIGRATE_ACCOUNT",
+              "REVOKE_GROUP",
+              "REVOKE_USER",
+              "UPDATE_QUORUM"
+            ],
+            "example": "CREATE_TRANSACTION",
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_on",
+          "expires_at",
+          "id",
+          "status",
+          "target_id",
+          "target_type",
+          "type"
+        ],
+        "type": "object"
+      },
+      "RequestSearchResult": {
+        "properties": {
+          "cursor": {
+            "example": 0,
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/Request"
+          }
+        },
+        "required": [
+          "cursor",
+          "node"
+        ],
+        "type": "object"
+      },
+      "RippleFields": {
+        "additionalProperties": false,
+        "properties": {
+          "destination_tag": {
+            "description": "ripple destination tag",
+            "type": "string"
+          },
+          "type": {
+            "default": "Ripple"
+          }
+        },
+        "required": [
+          "destination_tag"
+        ],
+        "type": "object"
+      },
+      "RippleFieldsLAM": {
+        "properties": {
+          "destination_tag": {
+            "default": null,
+            "description": "The corresponding destination tag (XRP only).",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StellarFields": {
+        "additionalProperties": false,
+        "properties": {
+          "memo": {
+            "description": "A valid stellar memo",
+            "oneOf": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarMemoHash"
+                  }
+                ],
+                "description": "A valid stellar memo"
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarMemoId"
+                  }
+                ],
+                "description": "A valid stellar memo"
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarMemoReturn"
+                  }
+                ],
+                "description": "A valid stellar memo"
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarMemoText"
+                  }
+                ],
+                "description": "A valid stellar memo"
+              }
+            ]
+          },
+          "type": {
+            "default": "Stellar"
+          }
+        },
+        "required": [
+          "memo"
+        ],
+        "type": "object"
+      },
+      "StellarFieldsLAM": {
+        "properties": {
+          "memo": {
+            "description": "A valid stellar memo (['MEMO_HASH', 'MEMO_ID', 'MEMO_RETURN', 'MEMO_TEXT'])",
+            "oneOf": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarMemoHashLAM"
+                  }
+                ],
+                "description": "A valid stellar memo (['MEMO_HASH', 'MEMO_ID', 'MEMO_RETURN', 'MEMO_TEXT'])"
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarMemoIdLAM"
+                  }
+                ],
+                "description": "A valid stellar memo (['MEMO_HASH', 'MEMO_ID', 'MEMO_RETURN', 'MEMO_TEXT'])"
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarMemoReturnLAM"
+                  }
+                ],
+                "description": "A valid stellar memo (['MEMO_HASH', 'MEMO_ID', 'MEMO_RETURN', 'MEMO_TEXT'])"
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarMemoTextLAM"
+                  }
+                ],
+                "description": "A valid stellar memo (['MEMO_HASH', 'MEMO_ID', 'MEMO_RETURN', 'MEMO_TEXT'])"
+              }
+            ]
+          }
+        },
+        "required": [
+          "memo"
+        ],
+        "type": "object"
+      },
+      "StellarMemoHash": {
+        "properties": {
+          "MEMO_HASH": {
+            "description": "Transaction Hash Memo (64 bytes hexadecimal string)",
+            "type": "string"
+          },
+          "type": {
+            "default": "MEMO_HASH"
+          }
+        },
+        "required": [
+          "MEMO_HASH"
+        ],
+        "type": "object"
+      },
+      "StellarMemoHashLAM": {
+        "properties": {
+          "MEMO_HASH": {
+            "description": "Transaction Hash Memo (64 bytes hexadecimal string)",
+            "maxLength": 64,
+            "minLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "MEMO_HASH"
+        ],
+        "type": "object"
+      },
+      "StellarMemoId": {
+        "properties": {
+          "MEMO_ID": {
+            "description": "Id Memo (unsigned 64 bits integer)",
+            "type": "integer"
+          },
+          "type": {
+            "default": "MEMO_ID"
+          }
+        },
+        "required": [
+          "MEMO_ID"
+        ],
+        "type": "object"
+      },
+      "StellarMemoIdLAM": {
+        "properties": {
+          "MEMO_ID": {
+            "description": "Id Memo (unsigned 64 bits integer)",
+            "maximum": 18446744073709552000,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "MEMO_ID"
+        ],
+        "type": "object"
+      },
+      "StellarMemoReturn": {
+        "properties": {
+          "MEMO_RETURN": {
+            "description": "A 64 bytes hexadecimal string intended to be interpreted as the hash of the transaction the sender is refunding.",
+            "type": "string"
+          },
+          "type": {
+            "default": "MEMO_RETURN"
+          }
+        },
+        "required": [
+          "MEMO_RETURN"
+        ],
+        "type": "object"
+      },
+      "StellarMemoReturnLAM": {
+        "properties": {
+          "MEMO_RETURN": {
+            "description": "A 64 bytes hexadecimal string intended to be interpreted as the hash of the transaction the sender is refunding.",
+            "maxLength": 64,
+            "minLength": 64,
+            "type": "string"
+          }
+        },
+        "required": [
+          "MEMO_RETURN"
+        ],
+        "type": "object"
+      },
+      "StellarMemoText": {
+        "properties": {
+          "MEMO_TEXT": {
+            "description": "Text Memo (at most a 28 bytes string)",
+            "type": "string"
+          },
+          "type": {
+            "default": "MEMO_TEXT"
+          }
+        },
+        "required": [
+          "MEMO_TEXT"
+        ],
+        "type": "object"
+      },
+      "StellarMemoTextLAM": {
+        "properties": {
+          "MEMO_TEXT": {
+            "description": "Text Memo (at most a 28 bytes string)",
+            "maxLength": 28,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "MEMO_TEXT"
+        ],
+        "type": "object"
+      },
+      "TezosFields": {
+        "additionalProperties": false,
+        "properties": {
+          "gas_limit": {
+            "description": "gas limit in XTZ",
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "storage_limit": {
+            "description": "storage limit in XTZ",
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "type": {
+            "default": "Tezos"
+          }
+        },
+        "required": [
+          "gas_limit",
+          "storage_limit"
+        ],
+        "type": "object"
+      },
+      "Transaction": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "account_index": {
+            "example": 0,
+            "type": "integer"
+          },
+          "amount": {
+            "example": "1432199",
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "broadcast_on": {
+            "default": null,
+            "example": "2020-12-11T12:56:35.370946+00:00",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "coin_fields": {
+            "default": null,
+            "example": {
+              "fees_per_byte": 10
+            },
+            "nullable": true,
+            "oneOf": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarFields"
+                  }
+                ],
+                "default": null,
+                "example": {
+                  "fees_per_byte": 10
+                },
+                "nullable": true
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EthereumFields"
+                  }
+                ],
+                "default": null,
+                "example": {
+                  "fees_per_byte": 10
+                },
+                "nullable": true
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/RippleFields"
+                  }
+                ],
+                "default": null,
+                "example": {
+                  "fees_per_byte": 10
+                },
+                "nullable": true
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/TezosFields"
+                  }
+                ],
+                "default": null,
+                "example": {
+                  "fees_per_byte": 10
+                },
+                "nullable": true
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/BitcoinFields"
+                  }
+                ],
+                "default": null,
+                "example": {
+                  "fees_per_byte": 10
+                },
+                "nullable": true
+              }
+            ]
+          },
+          "confirmations": {
+            "example": 28,
+            "type": "integer"
+          },
+          "created_by": {
+            "example": 5,
+            "type": "integer"
+          },
+          "created_on": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "enum": [
+              "Dollar",
+              "Euro",
+              "bitcoin",
+              "bitcoin_cash",
+              "bitcoin_gold",
+              "bitcoin_testnet",
+              "dash",
+              "digibyte",
+              "dogecoin",
+              "ethereum",
+              "ethereum_ropsten",
+              "komodo",
+              "litecoin",
+              "pivx",
+              "ripple",
+              "stellar",
+              "tezos",
+              "vertcoin",
+              "viacoin"
+            ],
+            "example": "bitcoin",
+            "type": "string"
+          },
+          "fees": {
+            "default": null,
+            "example": 17500,
+            "nullable": true,
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "last_request": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "max_fees": {
+            "default": null,
+            "example": 2100,
+            "nullable": true,
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          },
+          "min_confirmations": {
+            "example": 6,
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionNote"
+            },
+            "type": "array"
+          },
+          "recipient": {
+            "example": "tb1q2tvjts80vthcywq9au2yynpezca57mvv0j7lzm",
+            "type": "string"
+          },
+          "speed": {
+            "enum": [
+              "CUSTOM",
+              "FAST",
+              "NORMAL",
+              "SLOW"
+            ],
+            "example": "NORMAL",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "APPROVED",
+              "CONFIRMED",
+              "DROPPED",
+              "FAILED",
+              "FAILED_TO_BROADCAST",
+              "PENDING_APPROVAL",
+              "REJECTED",
+              "SIGNED",
+              "SUBMITTED"
+            ],
+            "example": "PENDING_APPROVAL",
+            "type": "string"
+          },
+          "tx_hash": {
+            "default": null,
+            "example": "cd199dd0c61ff75c7a442e425771fedfe07e191a76aed64b6a311ec4a369b20e",
+            "nullable": true,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "RECEIVE",
+              "SEND"
+            ],
+            "example": "SEND",
+            "type": "string"
+          },
+          "uid": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "account_index",
+          "amount",
+          "confirmations",
+          "created_by",
+          "created_on",
+          "currency",
+          "id",
+          "min_confirmations",
+          "notes",
+          "recipient",
+          "status",
+          "type"
+        ],
+        "type": "object"
+      },
+      "TransactionAmountLAM": {
+        "properties": {
+          "unit": {
+            "description": "Amount unit",
+            "example": "tsat",
+            "type": "string"
+          },
+          "value": {
+            "description": "The amount value",
+            "pattern": "^[0-9]*(\\.[0-9]+)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "value"
+        ],
+        "type": "object"
+      },
+      "TransactionApprovalDataLAM": {
+        "properties": {
+          "account_id": {
+            "default": null,
+            "description": "**Deprecated** The account's ID.",
+            "nullable": true,
+            "type": "integer"
+          },
+          "account_name": {
+            "description": "The account's name.",
+            "type": "string"
+          },
+          "amount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionAmountLAM"
+              }
+            ],
+            "description": "The amount to be sent."
+          },
+          "coin_fields": {
+            "default": null,
+            "description": "coin specific data",
+            "nullable": true,
+            "oneOf": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/RippleFieldsLAM"
+                  }
+                ],
+                "default": null,
+                "description": "coin specific data",
+                "nullable": true
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarFieldsLAM"
+                  }
+                ],
+                "default": null,
+                "description": "coin specific data",
+                "nullable": true
+              }
+            ]
+          },
+          "max_fees": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionAmountLAM"
+              }
+            ],
+            "description": "The transaction's max fees."
+          },
+          "recipient": {
+            "description": "The recipient's address.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_name",
+          "amount",
+          "max_fees",
+          "recipient"
+        ],
+        "type": "object"
+      },
+      "TransactionCreationDataLAM": {
+        "properties": {
+          "account_id": {
+            "default": null,
+            "description": "**Deprecated** The account's ID.",
+            "nullable": true,
+            "type": "integer"
+          },
+          "account_name": {
+            "description": "The account's name.",
+            "type": "string"
+          },
+          "amount": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionAmountLAM"
+              }
+            ],
+            "description": "The amount to be sent."
+          },
+          "coin_fields": {
+            "default": null,
+            "nullable": true,
+            "oneOf": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/BitcoinFieldsLAM"
+                  }
+                ],
+                "default": null,
+                "nullable": true
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EthereumFieldsLAM"
+                  }
+                ],
+                "default": null,
+                "nullable": true
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/RippleFieldsLAM"
+                  }
+                ],
+                "default": null,
+                "nullable": true
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/StellarFieldsLAM"
+                  }
+                ],
+                "default": null,
+                "nullable": true
+              }
+            ]
+          },
+          "max_fees": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionAmountLAM"
+              }
+            ],
+            "description": "The transaction's max fees."
+          },
+          "note": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TransactionNoteLiteLAM"
+              }
+            ],
+            "default": null,
+            "description": "A title and comments for the transaction.",
+            "nullable": true
+          },
+          "recipient": {
+            "description": "The recipient's address.",
+            "type": "string"
+          },
+          "speed": {
+            "description": "The transaction's processing speed.",
+            "enum": [
+              "CUSTOM",
+              "FAST",
+              "NORMAL",
+              "SLOW"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_name",
+          "amount",
+          "max_fees",
+          "recipient",
+          "speed"
+        ],
+        "type": "object"
+      },
+      "TransactionNote": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "example": "some information about this transaction",
+            "type": "string"
+          },
+          "title": {
+            "example": "a note title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "title"
+        ],
+        "type": "object"
+      },
+      "TransactionNoteLiteLAM": {
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "title"
+        ],
+        "type": "object"
+      },
+      "TransactionSearchResult": {
+        "properties": {
+          "cursor": {
+            "example": 0,
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/Transaction"
+          }
+        },
+        "required": [
+          "cursor",
+          "node"
+        ],
+        "type": "object"
+      },
+      "User": {
+        "additionalProperties": false,
+        "properties": {
+          "created_by": {
+            "example": 5,
+            "type": "integer"
+          },
+          "created_on": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "is_api": {
+            "example": false,
+            "type": "boolean"
+          },
+          "key_handle": {
+            "default": null,
+            "example": "7920380c812ab0b752b5f04a2561a736f136d9937af542bce149bad075ee25f60f21dad3fa9a8a88bc3fa80a360b3680bb7e1ef6179701e41f9d90fd5f6b475d",
+            "nullable": true,
+            "type": "string"
+          },
+          "last_request": {
+            "default": null,
+            "example": 2,
+            "nullable": true,
+            "type": "integer"
+          },
+          "pub_key": {
+            "default": null,
+            "example": "040BAE7B34D9AB3056D575128F24B42D09705FF9CFCD860790DF8147D45888E4C8C9C19AE837298C45CBC595152EA5F43788431F6B4C0017030351C05F6C505FCA",
+            "nullable": true,
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "ADMIN",
+              "ADMIN_SYSTEM",
+              "OPERATOR",
+              "SHARED_OWNER",
+              "WRAPPING_KEYS"
+            ],
+            "example": "OPERATOR",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACCESS_SUSPENDED",
+              "ACTIVE",
+              "PENDING_APPROVAL",
+              "PENDING_REGISTRATION",
+              "PENDING_REVOCATION",
+              "REJECTED",
+              "REVOKED"
+            ],
+            "example": "ACTIVE",
+            "type": "string"
+          },
+          "user_id": {
+            "default": null,
+            "example": "5CA88C5165CF3640",
+            "nullable": true,
+            "type": "string"
+          },
+          "username": {
+            "example": "operator1",
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_by",
+          "created_on",
+          "id",
+          "is_api",
+          "role",
+          "status",
+          "username"
+        ],
+        "type": "object"
+      },
+      "UserSearchResult": {
+        "properties": {
+          "cursor": {
+            "example": 0,
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "required": [
+          "cursor",
+          "node"
+        ],
+        "type": "object"
+      },
+      "Webhook": {
+        "properties": {
+          "secret": {
+            "description": "shared secret for webhook signature check",
+            "example": "topsecret",
+            "type": "string"
+          },
+          "url": {
+            "description": "webhook url, https only",
+            "example": "https://vault.crypstock.com/webhook",
+            "format": "url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "url"
+        ],
+        "type": "object"
+      },
+      "Whitelist": {
+        "additionalProperties": false,
+        "properties": {
+          "addresses": {
+            "example": [
+              {
+                "address": "tb1qrdw2mrllkm4lfjgnxeqz0yzjg6835sfyualdhy",
+                "currency": "bitcoin_testnet",
+                "destination_tag": null,
+                "id": 3,
+                "name": "main account"
+              },
+              {
+                "address": "mmWpcbXNXoKMjc6Q3WjPSxj4JbpLhAFotF",
+                "currency": "bitcoin_testnet",
+                "destination_tag": null,
+                "id": 4,
+                "name": "second account"
+              }
+            ],
+            "items": {
+              "$ref": "#/components/schemas/WhitelistAddress"
+            },
+            "type": "array"
+          },
+          "created_by": {
+            "example": 5,
+            "type": "integer"
+          },
+          "created_on": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "example": "our own accounts",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "last_request": {
+            "example": 3,
+            "type": "integer"
+          },
+          "name": {
+            "example": "internal accounts",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "PENDING",
+              "REJECTED",
+              "REVOKED"
+            ],
+            "example": "ACTIVE",
+            "type": "string"
+          }
+        },
+        "required": [
+          "addresses",
+          "created_by",
+          "created_on",
+          "description",
+          "id",
+          "last_request",
+          "name",
+          "status"
+        ],
+        "type": "object"
+      },
+      "WhitelistAddress": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "currency": {
+            "enum": [
+              "Dollar",
+              "Euro",
+              "bitcoin",
+              "bitcoin_cash",
+              "bitcoin_gold",
+              "bitcoin_testnet",
+              "dash",
+              "digibyte",
+              "dogecoin",
+              "ethereum",
+              "ethereum_ropsten",
+              "komodo",
+              "litecoin",
+              "pivx",
+              "ripple",
+              "stellar",
+              "tezos",
+              "vertcoin",
+              "viacoin"
+            ],
+            "type": "string"
+          },
+          "destination_tag": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "currency",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "WhitelistSearchResult": {
+        "properties": {
+          "cursor": {
+            "example": 0,
+            "type": "integer"
+          },
+          "node": {
+            "$ref": "#/components/schemas/Whitelist"
+          }
+        },
+        "required": [
+          "cursor",
+          "node"
+        ],
+        "type": "object"
+      },
+      "_APISearchAccountResults": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/AccountSearchResult"
+            },
+            "type": "array"
+          },
+          "page_info": {
+            "$ref": "#/components/schemas/APISearchPageInfo"
+          }
+        },
+        "required": [
+          "edges",
+          "page_info"
+        ],
+        "type": "object"
+      },
+      "_APISearchEntitiesResults": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/EntitySearchResult"
+            },
+            "type": "array"
+          },
+          "page_info": {
+            "$ref": "#/components/schemas/APISearchPageInfo"
+          }
+        },
+        "required": [
+          "edges",
+          "page_info"
+        ],
+        "type": "object"
+      },
+      "_APISearchGroupResults": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GroupSearchResult"
+            },
+            "type": "array"
+          },
+          "page_info": {
+            "$ref": "#/components/schemas/APISearchPageInfo"
+          }
+        },
+        "required": [
+          "edges",
+          "page_info"
+        ],
+        "type": "object"
+      },
+      "_APISearchRequestResults": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/RequestSearchResult"
+            },
+            "type": "array"
+          },
+          "page_info": {
+            "$ref": "#/components/schemas/APISearchPageInfo"
+          }
+        },
+        "required": [
+          "edges",
+          "page_info"
+        ],
+        "type": "object"
+      },
+      "_APISearchTransactionResults": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionSearchResult"
+            },
+            "type": "array"
+          },
+          "page_info": {
+            "$ref": "#/components/schemas/APISearchPageInfo"
+          }
+        },
+        "required": [
+          "edges",
+          "page_info"
+        ],
+        "type": "object"
+      },
+      "_APISearchUserResults": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/UserSearchResult"
+            },
+            "type": "array"
+          },
+          "page_info": {
+            "$ref": "#/components/schemas/APISearchPageInfo"
+          }
+        },
+        "required": [
+          "edges",
+          "page_info"
+        ],
+        "type": "object"
+      },
+      "_APISearchWhitelistResults": {
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/WhitelistSearchResult"
+            },
+            "type": "array"
+          },
+          "page_info": {
+            "$ref": "#/components/schemas/APISearchPageInfo"
+          }
+        },
+        "required": [
+          "edges",
+          "page_info"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "Ledger_API_Key": {
+        "description": "If you've set up your API Key when initializing your LAM, you'll need to include it as a header along with the api user header. For more details, [see step 5 of the get started documentation](https://help.vault.ledger.com/Content/api/api_getstarted.html).",
+        "in": "header",
+        "name": "X-Ledger-API-Key",
+        "type": "apiKey"
+      },
+      "Ledger_API_User": {
+        "description": "(**required**) Username of a registered API User",
+        "in": "header",
+        "name": "X-Ledger-API-User",
+        "type": "apiKey"
+      },
+      "Ledger_Store_Auth_Token": {
+        "description": "If you've set up HashiCorp Vault as an authentication service, you'll need to pass the `X-Ledger-Store-Auth-Token` header along with the API user header. For more details see [how to set up HashiCorp Vault with the LAM](https://help.vault.ledger.com/Content/api/hashicorp_vault.html).",
+        "in": "header",
+        "name": "X-Ledger-Store-Auth-Token",
+        "type": "apiKey"
+      }
+    }
+  }
+}
