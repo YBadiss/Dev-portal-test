@@ -8,7 +8,7 @@ training:
       - label: Markdown
         page: developer-portal/markdown.md
       - label: Folder structure
-        page: developer-portal/awesome/folders.md
+        page: folders.md
       - label: Mermaid diagrams
         page: developer-portal/mermaid.md
       - label: Page table of contents

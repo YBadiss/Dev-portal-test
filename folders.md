@@ -1,3 +1,4 @@
+# Folder structure training
 
 ## Changing URL paths
 
@@ -6,7 +7,7 @@ Nested folders will result in deep paths.
 
 If you look at the path for this page, you'll see it is at `/developer-portal/awesome/folders`.
 
-![path](./developer-portal/images/folders-url.png)
+![path](../images/folders-url.png)
 
 The title of the page is `Folder structure training` and doesn't match the path.
 
