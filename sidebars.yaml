@@ -1,7 +1,7 @@
 training:
   - page: developer-portal/index.md
   - group: Training exercises
-    expanded: true
+    expanded: false
     pages:
       - label: Adding API reference docs
         page: developer-portal/oas-definitions.md
