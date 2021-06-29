@@ -40,10 +40,6 @@ training:
         page: openapi/reference.page.yaml
       - label: Creating React components
         page: developer-portal/custom-component.mdx
-  - group: Petstore reference
-    expanded: false
-    pages:
-      - page: openapi/reference.page.yaml/*
   - separator: Admin
   - label: Upgrade instructions
     page: developer-portal/upgrade.md

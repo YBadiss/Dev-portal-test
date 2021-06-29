@@ -6,3 +6,10 @@ settings:
       - lang: curl
       - lang: JavaScript
       - lang: Node.js
+definitionId: testsecondapi
+settings:
+  generateCodeSamples:
+    languages:
+      - lang: curl
+      - lang: JavaScript
+      - lang: Node.js
