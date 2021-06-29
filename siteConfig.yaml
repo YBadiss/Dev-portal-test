@@ -6,10 +6,9 @@ meta:
 logo: ./images/Frame389.png
 enableToc: true
 oasDefinitions:
-  petstore: ./openapi/petstore.yaml
+  testapi: ./openapi/swagger.json
   # add links to definitions in our API registry by using a fully qualified URL.
-  ultra: ./openapi/ultra-api.yaml
-  max: https://example.com/max/openapi.yaml
+  
 stylesheets:
   - https://fonts.googleapis.com/css?family=Roboto:300,400,600,700
   - https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700&display=swap
@@ -22,15 +21,13 @@ stylesheets:
 nav:
   - search: true
 
-  - label: Training exercises
+  - label: FAQ
     page: developer-portal/index.md
 
-  - label: External docs
+  - label: Ledger Vault Help Center
     icon: ./images/redocly-icon-white.png
     href: https://docs.redoc.ly/developer-portal/introduction/
 
-  - label: Youtube
-    href: https://youtube.com
 
 footer:
   copyrightText: Copyright © Redocly LLC 2019-2021. All right reserved.
