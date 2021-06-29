@@ -6,9 +6,8 @@ meta:
 logo: ./images/Frame389.png
 enableToc: true
 oasDefinitions:
-  testapi: ./openapi/swagger.json
-  # add links to definitions in our API registry by using a fully qualified URL.
-  testsecondapi: ./openapi/swagger_vault.json
+  walletdaemonapi: ./openapi/swagger.json
+  vaultapi: ./openapi/swagger_vault.json
   
 stylesheets:
   - https://fonts.googleapis.com/css?family=Roboto:300,400,600,700

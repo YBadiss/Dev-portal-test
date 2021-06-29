@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Ledger / Wallet Daemon API",
-    "description": "Ledger / Wallet Daemon API, a server wrapping LibCore. This is a test descitpion.Watcan I do ? <br> can I use html, or markdown ? ",
+    "description": "Ledger / Wallet Daemon API, a server wrapping LibCore. This is a test descitpion. What can I do ? <br> can I use html, or markdown ? ",
     "version": "2.11.4"
   },
   "servers": [
