@@ -3,7 +3,7 @@ versions:
   - definitionId: walletdaemonapi
     id: v1
     title: Acme V1
-    isDefault: true
+    isDefault: false
   - definitionId: vaultapi
     id: v2
     title: Acme V2
