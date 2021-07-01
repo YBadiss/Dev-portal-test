@@ -6,8 +6,8 @@ meta:
 logo: ./images/Frame389.png
 enableToc: true
 oasDefinitions:
-  walletdaemonapi: ./openapi/swagger.json
-  vaultapi: ./openapi/swagger_vault.json
+  walletdaemonapi: ./openapi/wallet/swagger.json
+  vaultapi: ./openapi/vault/swagger_vault.json
   
 stylesheets:
   - https://fonts.googleapis.com/css?family=Roboto:300,400,600,700

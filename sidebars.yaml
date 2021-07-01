@@ -10,10 +10,10 @@ training:
       - label: Creating React components
         page: developer-portal/custom-component.mdx
   - separator: APIs
-  - label: Add API json file test
-    page: openapi/reference.page.yaml
-  - label: Upgrade instructions
-    page: developer-portal/upgrade.md
+  - label: Vault
+    page: openapi/vault/reference.page.yaml
+  - label: Wallet Daemon
+    page: openapi/wallet/reference.page.yaml
 
   - group: Admin
     expanded: false
