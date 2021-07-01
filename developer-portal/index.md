@@ -1,13 +1,11 @@
 ---
-title: Training program
+title: Introduction
 ---
 
-# Training program
+# Introduction
 
-This interactive training program is designed to help you understand how to create and edit content using Redocly's developer portal.
-It's a great companion to our [developer portal docs](https://docs.redoc.ly/developer-portal/introduction/).
+Maybe some general introduction about this documentation, diagrams about the architecture, etc.  
 
-Spend between an hour and a day playing with the most commonly utilized features.
 
 ## Prerequisites
 - Basic Git and markdown knowledge

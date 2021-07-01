@@ -33,35 +33,12 @@ export default LandingLayout;
 
 <Jumbotron>
   <NavBar location={props.location} standalone={false} />
-  <H1>Redocly training test</H1>
-  <H2>Which API documentation would like to see?</H2>
+  <H1>API Documentation</H1>
+  <H2>The best API documentation ever</H2>
   <Flex p={20} justifyContent="center">
     <Button inversed transparent large to="developer-portal/index.md">
       Get started
     </Button>
-    <Button inversed large to="https://horrible-seahorse-97.redoc.ly/">
-      Wallet Daemon
-    </Button>
-    <Button inversed large to="https://vault-ledger-test.redoc.ly/">
-      Vault
-    </Button>
-    {/* <Button inversed transparent large>
-      Workflows
-    </Button> */}
-  </Flex>
-  <Flex p={20} justifyContent="center">
-    <Button inversed transparent large to="developer-portal/index.md">
-      Get started
-    </Button>
-    <Button inversed large to="https://horrible-seahorse-97.redoc.ly/">
-      Wallet Daemon
-    </Button>
-    <Button inversed large to="https://vault-ledger-test.redoc.ly/">
-      Vault
-    </Button>
-    {/* <Button inversed transparent large>
-      Workflows
-    </Button> */}
   </Flex>
 </Jumbotron>
 
@@ -69,40 +46,27 @@ export default LandingLayout;
 
 <Box my={25}>
   <SectionHeader>
-    Create your <Emphasis> developer portal </Emphasis> today!
+    Here are some links to the Reference Documents
   </SectionHeader>
   <FlexSection justifyContent="space-around" flexWrap="wrap">
-    <ThinTile to="https://vault-ledger-test.redoc.ly/" icon={icon1test} header="Vault API">
-        Just testing. Click here to access to the Vault API documentation.
+    <ThinTile to="openapi/vault/reference.page.yaml" icon={icon1test} header="Vault API">
+        Just testing. Click here to access to the Vault API documentation, in this portal.
     </ThinTile>
     <ThinTile to="https://horrible-seahorse-97.redoc.ly/" icon={launchFastIcontest} header="Wallet Daemon">
-        Lorem ipsum dolor sit amet, pri putent oportere quaerendum in, ea mea justo invenire
-        aliquando. Usu modo suavitate ea. Et sed labitur epicurei adipiscing. Nibh zril labitur
-        an usu.
+        Click here to access the Wallet Daemon EXTERNAL reference doc. Just testing..
     </ThinTile>
     <ThinTile to="https://weak-owl-77.redoc.ly/" icon={icon3} header="Paul's API">
         Let's test if we can have a home button on this reference doc !
     </ThinTile>
   </FlexSection>
-  {/* <Jumbotron parallaxEffect bgImage={icon1}>
-    <H1>Tutorials</H1>
-    <H2>Get setup faster...</H2>
-  </Jumbotron> */}
-
-<Jumbotron parallaxEffect bgImage={frame389}>
-  <H1>Tutorials test</H1>
-  <H2>Get setup faster...test</H2>
-</Jumbotron>
+  
 
   <SectionHeader>
-    <Emphasis>Need help? </Emphasis>
-    Try our training exercises.
+    More ressources? Github Repos ? Popular articles ? 
   </SectionHeader>
   <FlexSection justifyContent="space-around" flexWrap="wrap">
     <WideTile to="developer-portal/index.md" header="Rock">
-        Lorem ipsum dolor sit amet, pri putent oportere quaerendum in, ea mea justo invenire
-        aliquando. Usu modo suavitate ea. Et sed labitur epicurei adipiscing. Nibh zril labitur
-        an usu.
+        Just an example of what we can do.
     </WideTile>
     <WideTile to="developer-portal/index.md" header="Paper">
         Lorem ipsum dolor sit amet, pri putent oportere quaerendum in, ea mea justo invenire

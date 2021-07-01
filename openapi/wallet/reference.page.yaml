@@ -1,0 +1,4 @@
+type: reference-docs
+definitionId: walletdaemonapi
+settings:
+  jsonSampleExpandLevel: 'all'
