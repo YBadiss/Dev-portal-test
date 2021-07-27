@@ -4,7 +4,3 @@ training:
     page: openapi/vault/reference.page.yaml
   - label: Wallet Daemon
     page: openapi/wallet/reference.page.yaml
-
-alternative:
-  - page: developer-portal/sidebar-alternative.md
-    label: Alternative sidebar example
